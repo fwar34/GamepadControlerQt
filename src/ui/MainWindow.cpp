@@ -30,7 +30,9 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     setWindowTitle(tr("Gamepad 控制器 - Windows 本机版"));
     
     // 创建悬浮层信息窗口
-    overlay_ = new OverlayWidget(this);
+    // 注意：parent 传 nullptr，使其成为独立顶层窗口，
+    // 主窗口最小化时悬浮窗不会跟随隐藏
+    overlay_ = new OverlayWidget(nullptr);
     overlay_->show();
     // 连接层变化信号到悬浮窗口
     connect(input_, &SteamInput::layerChanged, overlay_, &OverlayWidget::setLayerName);

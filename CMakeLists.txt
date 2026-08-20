@@ -60,3 +60,10 @@ if(WIN32)
     target_compile_definitions(GamepadControllerQt PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
     target_link_libraries(GamepadControllerQt PRIVATE winmm xinput)
 endif()
+
+# 源码与可执行字符集统一为 UTF-8，避免中文注释/字符串在编译输出中乱码
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(GamepadControllerQt PRIVATE -finput-charset=UTF-8 -fexec-charset=UTF-8)
+elseif(MSVC)
+    target_compile_options(GamepadControllerQt PRIVATE /utf-8)
+endif()
