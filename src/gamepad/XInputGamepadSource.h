@@ -41,4 +41,7 @@ private:
     QTimer timer_;
     // 上一次按钮状态，用于检测变化并发出事件
     QHash<ControllerButton, bool> prevButtonStates_;
+    // 连接失败计数，避免短暂错误导致状态闪烁
+    int connectionFailCount_ = 0;
+    static constexpr int MAX_CONNECTION_FAILS = 3;
 };

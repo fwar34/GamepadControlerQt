@@ -2,6 +2,8 @@
 
 #include <QMainWindow>
 
+#include "OverlayWidget.h"
+
 class SteamInput;
 class KeyboardMouseMapper;
 class XInputGamepadSource;
@@ -18,6 +20,7 @@ class MainWindow : public QMainWindow {
 public:
     MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGamepadSource* gamepad,
                QWidget* parent = nullptr);
+    ~MainWindow() override;
 
 private slots:
     void onLayerChanged(const QString& activeLayerName);
@@ -35,6 +38,7 @@ private:
     SteamInput* input_;
     KeyboardMouseMapper* mapper_;
     XInputGamepadSource* gamepad_;
+    OverlayWidget* overlay_ = nullptr;
 
     QLabel* connectionLabel_ = nullptr;
     QLabel* activeLayerLabel_ = nullptr;

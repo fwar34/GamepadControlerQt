@@ -44,6 +44,8 @@ set(PROJECT_SOURCES
     src/gamepad/XInputGamepadSource.cpp
 
     # 界面
+    src/ui/OverlayWidget.h
+    src/ui/OverlayWidget.cpp
     src/ui/MainWindow.h
     src/ui/MainWindow.cpp
     src/ui/LayerEditDialog.h

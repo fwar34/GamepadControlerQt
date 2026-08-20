@@ -93,13 +93,14 @@ struct KeyMapping {
 // 操作层（按键映射集合）
 class OperationLayer {
 public:
-    QString name;
+    QString id; // 唯一标识符，固定不变（如"Layer1"）
+    QString name; // 显示名称，用户可修改
     bool hasTriggerButton = false;
     ControllerButton triggerButton = ControllerButton::A;
     QHash<ControllerButton, KeyMapping> buttonMappings;
 
     OperationLayer() = default;
-    explicit OperationLayer(const QString& layerName) : name(layerName) {}
+    explicit OperationLayer(const QString& layerName) : id(layerName), name(layerName) {}
 
     const KeyMapping* getMapping(ControllerButton b) const {
         const auto it = buttonMappings.constFind(b);
@@ -129,16 +130,16 @@ public:
 
     static constexpr int MAX_LAYERS = 10;
 
-    OperationLayer* findLayer(const QString& name) {
-        if (commonLayer.name == name) return &commonLayer;
+    OperationLayer* findLayer(const QString& id) {
+        if (commonLayer.id == id) return &commonLayer;
         for (OperationLayer& l : layers)
-            if (l.name == name) return &l;
+            if (l.id == id) return &l;
         return nullptr;
     }
-    const OperationLayer* findLayer(const QString& name) const {
-        if (commonLayer.name == name) return &commonLayer;
+    const OperationLayer* findLayer(const QString& id) const {
+        if (commonLayer.id == id) return &commonLayer;
         for (const OperationLayer& l : layers)
-            if (l.name == name) return &l;
+            if (l.id == id) return &l;
         return nullptr;
     }
     // 由触发按键找操作层

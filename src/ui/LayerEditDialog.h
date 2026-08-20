@@ -1,42 +1,42 @@
 #pragma once
 
+#include <QDialog>
+#include <QListWidget>
+#include <QStackedWidget>
+#include <QComboBox>
+#include <QLineEdit>
+
 #include "../core/MappingTypes.h"
 
-#include <QDialog>
+class QLabel;
+class QPushButton;
 
-class QComboBox;
-class QListWidget;
-class QStackedWidget;
-
-// =====================================================================
-// 操作层编辑对话框
-// 编辑某个操作层（或公共层）的按键映射。
-// 在副本上编辑，确认时写回原 OperationLayer（取消则不改动）。
-// =====================================================================
 class LayerEditDialog : public QDialog {
     Q_OBJECT
 public:
-    LayerEditDialog(ControllerProfile* profile, OperationLayer* layer, QWidget* parent = nullptr);
-
-private:
-    void buildUi();
-    ControllerButton currentButton() const;
+    explicit LayerEditDialog(ControllerProfile* profile, OperationLayer* layer, QWidget* parent = nullptr);
+    
+private slots:
     void loadForm();
     void saveFormFor(ControllerButton button);
     void updateParamPage(int typeIndex);
     void accept() override;
-
-    ControllerProfile* profile_;
-    OperationLayer* layer_;   // 原始层（accept 时写回）
-    OperationLayer copy_;     // 编辑副本
-
+    
+private:
+    ControllerProfile* profile_ = nullptr;
+    OperationLayer* layer_ = nullptr;
+    OperationLayer copy_;
+    
+    bool loading_ = false;
+    QLineEdit* layerNameEdit_ = nullptr;
     QListWidget* buttonList_ = nullptr;
-    QComboBox* actionTypeCombo_ = nullptr;
     QStackedWidget* paramStack_ = nullptr;
+    QComboBox* actionTypeCombo_ = nullptr;
     QComboBox* keyCombo_ = nullptr;
     QComboBox* mouseCombo_ = nullptr;
     QComboBox* layerCombo_ = nullptr;
-    QComboBox* subCombos_[3] = {nullptr, nullptr, nullptr};
-
-    bool loading_ = false;
+    QComboBox* subCombos_[3] = {};
+    
+    void buildUi();
+    ControllerButton currentButton() const;
 };

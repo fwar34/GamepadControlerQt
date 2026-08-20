@@ -58,6 +58,7 @@ void XInputGamepadSource::setPollInterval(int ms) {
 
 void XInputGamepadSource::start() {
     if (!timer_.isActive()) {
+        connectionFailCount_ = 0;
         timer_.start();
         poll();  // 立即轮询一次，快速反馈连接状态
     }
@@ -85,6 +86,7 @@ void XInputGamepadSource::poll() {
     const DWORD result = XInputGetState(static_cast<DWORD>(playerIndex_), &state);
 
     if (result == ERROR_SUCCESS) {
+        connectionFailCount_ = 0;
         if (!connected_) {
             connected_ = true;
             emit connectedChanged(true);
@@ -118,16 +120,19 @@ void XInputGamepadSource::poll() {
         emit stickChanged(ControllerStick::RIGHT_STICK,
                           axisToFloat(pad.sThumbRX), axisToFloat(pad.sThumbRY));
     } else {
-        // 未连接：若之前已连接，释放所有按钮并更新状态
-        if (connected_) {
+        connectionFailCount_++;
+        // 只有当失败次数达到阈值时，才认为手柄真正断开
+        if (connectionFailCount_ >= MAX_CONNECTION_FAILS && connected_) {
             connected_ = false;
-            emit connectedChanged(false);
+            // 释放所有已按下的按键，避免heldButtons_堆积
             for (auto it = prevButtonStates_.begin(); it != prevButtonStates_.end(); ++it) {
                 if (it.value()) {
                     it.value() = false;
                     emit buttonChanged(it.key(), false);
                 }
             }
+            prevButtonStates_.clear();
+            emit connectedChanged(false);
         }
     }
 }

@@ -31,6 +31,7 @@ QString KeyMapping::describe() const {
 
 ControllerProfile ControllerProfile::createDefault() {
     ControllerProfile p;
+    p.commonLayer.id = QStringLiteral("Common");
     p.commonLayer.name = QStringLiteral("Common");
 
     // 公共层默认映射
@@ -73,6 +74,7 @@ ControllerProfile ControllerProfile::createDefault() {
             t.button, KeyMapping{MappedAction::switchLayer(QString::fromLatin1(t.name)), {}});
         // 操作层：triggerButton 仅用于 UI 显示，实际切换由公共层的 SwitchLayer 映射完成
         OperationLayer layer(QString::fromLatin1(t.name));
+        layer.name = layerDisplayName(layer.id);
         layer.hasTriggerButton = true;
         layer.triggerButton = t.button;
         p.layers.append(layer);

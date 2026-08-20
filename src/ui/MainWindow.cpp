@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 
+#include "OverlayWidget.h"
 #include "LayerEditDialog.h"
 
 #include "../core/ConfigManager.h"
@@ -8,6 +9,9 @@
 #include "../core/SteamInput.h"
 #include "../gamepad/XInputGamepadSource.h"
 
+#include <QApplication>
+#include <QGuiApplication>
+#include <QScreen>
 #include <QCursor>
 #include <QGridLayout>
 #include <QGroupBox>
@@ -24,6 +28,34 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
                        QWidget* parent)
     : QMainWindow(parent), input_(input), mapper_(mapper), gamepad_(gamepad) {
     setWindowTitle(tr("Gamepad 控制器 - Windows 本机版"));
+    
+    // 创建悬浮层信息窗口
+    overlay_ = new OverlayWidget(this);
+    overlay_->show();
+    // 连接层变化信号到悬浮窗口
+    connect(input_, &SteamInput::layerChanged, overlay_, &OverlayWidget::setLayerName);
+    // 连接按键变化信号到悬浮窗口（过滤掉层切换触发按键）
+    connect(input_, &SteamInput::buttonMapped, this, [this]() {
+        QSet<ControllerButton> filtered;
+        const auto& held = input_->heldButtons();
+        for (ControllerButton btn : held) {
+            const auto* mapping = input_->getEffectiveMapping(btn);
+            if (mapping && mapping->action.type != MappedAction::Type::SwitchLayer) {
+                filtered.insert(btn);
+            }
+        }
+        overlay_->setHeldButtons(filtered);
+    });
+    // 初始更新按键状态（过滤掉层切换触发按键）
+    QSet<ControllerButton> filtered;
+    const auto& initialHeld = input_->heldButtons();
+    for (ControllerButton btn : initialHeld) {
+        const auto* mapping = input_->getEffectiveMapping(btn);
+        if (mapping && mapping->action.type != MappedAction::Type::SwitchLayer) {
+            filtered.insert(btn);
+        }
+    }
+    overlay_->setHeldButtons(filtered);
 
     auto* central = new QWidget(this);
     auto* root = new QVBoxLayout(central);
@@ -51,26 +83,28 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
 
     const auto& layers = input_->profile.layers;
     auto* grid = new QGridLayout;
+    grid->setSpacing(6);
     const int cols = 2;
     for (int i = 0; i < layers.size(); ++i) {
-        const QString name = layers[i].name;
-        auto* btn = new QPushButton(layerDisplayName(name), layerGroup);
-        btn->setObjectName(name);
+        const QString layerId = layers[i].id;
+        const OperationLayer* layer = input_->profile.findLayer(layerId);
+        auto* btn = new QPushButton(layer ? layer->name : layerDisplayName(layerId), layerGroup);
+        btn->setObjectName(layerId);
         btn->setCheckable(true);
         btn->setContextMenuPolicy(Qt::CustomContextMenu);
-        connect(btn, &QPushButton::clicked, this, [this, btn]() {
-            const QString name = btn->objectName();
-            if (input_->isLayerActive(name))
-                input_->deactivateLayer(name);
+        btn->setToolTip(tr("点击切换层，右键编辑"));
+        connect(btn, &QPushButton::clicked, this, [this, layerId](bool checked) {
+            if (checked)
+                input_->activateLayer(layerId);
             else
-                input_->activateLayer(name);
+                input_->deactivateLayer(layerId);
         });
-        connect(btn, &QPushButton::customContextMenuRequested, this, [this, name](const QPoint&) {
+        connect(btn, &QPushButton::customContextMenuRequested, this, [this, layerId](const QPoint&) {
             QMenu menu(this);
             QAction* edit = menu.addAction(tr("编辑该层…"));
             QAction* act = menu.exec(QCursor::pos());
             if (act == edit)
-                editLayer(name);
+                editLayer(layerId);
         });
         grid->addWidget(btn, i / cols, i % cols);
         layerButtons_.append(btn);
@@ -79,6 +113,7 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     layerLayout->addStretch(1);
 
     auto* editCommonBtn = new QPushButton(tr("编辑公共层…"), layerGroup);
+    editCommonBtn->setObjectName(QStringLiteral("editCommonBtn"));
     connect(editCommonBtn, &QPushButton::clicked, this, &MainWindow::onEditCommonLayer);
     layerLayout->addWidget(editCommonBtn);
     mid->addWidget(layerGroup, 1);
@@ -157,13 +192,22 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     onLayerChanged(input_->activeLayerName());
     refreshLayerButtons();
     onConnectionChanged(gamepad_->isConnected());
+    
+    // 连接手柄连接状态变化信号
+    connect(gamepad_, &XInputGamepadSource::connectedChanged,
+            this, &MainWindow::onConnectionChanged);
 }
 
 // ---------------------------------------------------------------
 
 void MainWindow::onLayerChanged(const QString& activeLayerName) {
-    if (activeLayerLabel_)
-        activeLayerLabel_->setText(tr("当前层：%1").arg(layerDisplayName(activeLayerName)));
+    if (activeLayerLabel_) {
+        const OperationLayer* layer = input_->profile.findLayer(activeLayerName);
+        const QString displayName = layer ? layer->name : activeLayerName;
+        activeLayerLabel_->setText(tr("当前层：%1").arg(displayName));
+        if (overlay_)
+            overlay_->setLayerName(displayName);
+    }
     refreshLayerButtons();
 }
 
@@ -175,10 +219,20 @@ void MainWindow::onConnectionChanged(bool connected) {
 
 void MainWindow::refreshLayerButtons() {
     for (QPushButton* btn : layerButtons_) {
-        const bool active = input_->isLayerActive(btn->objectName());
+        const QString layerId = btn->objectName();
+        const bool active = input_->isLayerActive(layerId);
         btn->setChecked(active);
         btn->setStyleSheet(active ? QStringLiteral("background: #2196f3; color: white;")
                                   : QString());
+        // 更新按钮文本为当前层名称
+        if (const OperationLayer* layer = input_->profile.findLayer(layerId)) {
+            btn->setText(layer->name);
+        }
+    }
+    // 更新公共层编辑按钮文本
+    if (auto* editCommonBtn = findChild<QPushButton*>(QStringLiteral("editCommonBtn"))) {
+        const OperationLayer* commonLayer = input_->profile.findLayer(QStringLiteral("Common"));
+        editCommonBtn->setText(tr("编辑公共层：%1…").arg(commonLayer ? commonLayer->name : tr("公共层")));
     }
 }
 
@@ -240,4 +294,11 @@ void MainWindow::onApplySettings() {
     s.lookSmoothing = static_cast<float>(smoothingSlider_->value()) / 100.0f;
     s.lookAcceleration = static_cast<float>(accelerationSlider_->value()) / 100.0f;
     input_->setGlobalSettings(s);
+}
+
+MainWindow::~MainWindow() {
+    if (overlay_) {
+        overlay_->close();
+        delete overlay_;
+    }
 }

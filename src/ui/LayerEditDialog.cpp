@@ -118,6 +118,13 @@ LayerEditDialog::LayerEditDialog(ControllerProfile* profile, OperationLayer* lay
 void LayerEditDialog::buildUi() {
     auto* root = new QVBoxLayout(this);
 
+    // 层名称编辑
+    auto* nameLayout = new QHBoxLayout;
+    nameLayout->addWidget(new QLabel(tr("层名称："), this));
+    layerNameEdit_ = new QLineEdit(copy_.name, this);
+    nameLayout->addWidget(layerNameEdit_);
+    root->addLayout(nameLayout);
+
     if (copy_.hasTriggerButton) {
         root->addWidget(new QLabel(
             tr("触发按键（仅显示用，实际切换由公共层的“切换层”映射完成）：%1")
@@ -300,6 +307,8 @@ void LayerEditDialog::updateParamPage(int typeIndex) {
 
 void LayerEditDialog::accept() {
     saveFormFor(currentButton());
+    // 更新层名称
+    copy_.name = layerNameEdit_->text().trimmed();
     *layer_ = copy_;
     QDialog::accept();
 }

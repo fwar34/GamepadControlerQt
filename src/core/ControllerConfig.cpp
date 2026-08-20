@@ -114,6 +114,8 @@ bool parseMapping(const QJsonObject& json, KeyMapping* out) {
 
 QJsonObject layerToJson(const OperationLayer& layer) {
     QJsonObject json;
+    // id 与 name 分开持久化，支持重命名后重启仍能正确定位层
+    json.insert(QStringLiteral("id"), layer.id.isEmpty() ? layer.name : layer.id);
     json.insert(QStringLiteral("name"), layer.name);
     if (layer.hasTriggerButton)
         json.insert(QStringLiteral("triggerButton"), controllerButtonName(layer.triggerButton));
@@ -126,7 +128,12 @@ QJsonObject layerToJson(const OperationLayer& layer) {
 
 OperationLayer parseLayer(const QJsonObject& json, bool isCommon) {
     OperationLayer layer;
-    layer.name = json.value(QStringLiteral("name")).toString();
+    const QString name = json.value(QStringLiteral("name")).toString();
+    layer.name = name;
+    // id：优先读取持久化的 id；缺失时回退到 name（兼容旧配置/安卓配置）
+    layer.id = json.value(QStringLiteral("id")).toString();
+    if (layer.id.isEmpty())
+        layer.id = isCommon ? QStringLiteral("Common") : name;
 
     if (!isCommon) {
         ControllerButton tb = ControllerButton::A;
