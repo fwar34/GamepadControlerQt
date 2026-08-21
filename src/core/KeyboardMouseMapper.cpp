@@ -187,9 +187,10 @@ void KeyboardMouseMapper::handleStick(ControllerStick stick, float x, float y) {
     }
 
     // 左摇杆 -> WASD 8 方向（阈值 0.5）
+    // 注意：XInput 的 Y 轴向上为正（向上推 => y>0），判定要跟物理方向一致。
     constexpr float THRESHOLD = 0.5f;
-    const bool up = y < -THRESHOLD;
-    const bool down = y > THRESHOLD;
+    const bool up = y > THRESHOLD;     // 摇杆向上（y 为正）-> W
+    const bool down = y < -THRESHOLD;  // 摇杆向下（y 为负）-> S
     const bool left = x < -THRESHOLD;
     const bool right = x > THRESHOLD;
 
@@ -284,8 +285,9 @@ void KeyboardMouseMapper::processLookTick(float dt) {
     smoothedLookY_ = smoothedLookY_ * (1.f - alpha) + ry * alpha;
 
     // 位移积分：480px/秒 × 灵敏度 × dt（亚像素由注入器余量累积补发）
+    // Y 轴取反：XInput 右摇杆向上推 => ry>0，而鼠标向上移动需要 dy<0（屏幕 Y 向下为正）。
     const float dx = smoothedLookX_ * sens * LOOK_SPEED_PX_PER_SEC * dt;
-    const float dy = smoothedLookY_ * sens * LOOK_SPEED_PX_PER_SEC * dt;
+    const float dy = -smoothedLookY_ * sens * LOOK_SPEED_PX_PER_SEC * dt;
     if (dx != 0.f || dy != 0.f)
         injector_->sendMouseMove(dx, dy);
 }

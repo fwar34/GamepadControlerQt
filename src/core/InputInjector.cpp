@@ -88,18 +88,33 @@ int androidKeyCodeToWindowsVK(int androidKeyCode) {
 // 扫描码用于 KEYEVENTF_SCANCODE 模式，DirectInput/Raw Input 游戏主要识别此码。
 // ---------------------------------------------------------------------
 int androidKeyCodeToWindowsScanCode(int androidKeyCode) {
-    // 字母 A-Z: 扫描码 = 0x1E + (key - A)，与 QWERTY 物理位置一致
-    if (androidKeyCode >= 29 && androidKeyCode <= 54)
-        return 0x1E + (androidKeyCode - 29);
-    // 数字 0-9: 扫描码 = 0x0B + (key - 0)
-    if (androidKeyCode >= 7 && androidKeyCode <= 16)
-        return 0x0B + (androidKeyCode - 7);
-    // F1-F12: 扫描码 = 0x3B + (key - F1)
+    // 注意：KEYEVENTF_SCANCODE 模式下 Windows 只认 wScan（硬件扫描码），
+    // 扫描码必须对应键盘的真实物理按键位置，不能按连续值推算！
+    // （如数字键 2 的物理扫描码是 0x03，而 0x0D 是 '=' 键——之前的
+    //   连续公式把"2"错当成"="，导致游戏中按键输出全错。）
+
+    // 字母 A-Z: 29..54。QWERTY 物理扫描码（非连续，必须查表）
+    if (androidKeyCode >= 29 && androidKeyCode <= 54) {
+        static const int sc[26] = {
+            0x1E, 0x30, 0x2E, 0x20, 0x12, 0x21, 0x22, 0x23, 0x17, 0x24, 0x25, 0x26, 0x32,  // A-M
+            0x31, 0x18, 0x19, 0x10, 0x13, 0x1F, 0x14, 0x16, 0x2F, 0x11, 0x2D, 0x15, 0x2C   // N-Z
+        };
+        return sc[androidKeyCode - 29];
+    }
+    // 数字 0-9: 7..16（KEYCODE_0..KEYCODE_9）
+    // 物理扫描码：1=0x02 2=0x03 ... 9=0x0A 0=0x0B（0 在 9 之后，非连续）
+    if (androidKeyCode >= 7 && androidKeyCode <= 16) {
+        static const int sc[10] = {0x0B, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A};
+        return sc[androidKeyCode - 7];
+    }
+    // F1-F12: 131..142 -> 0x3B..0x44（连续）
     if (androidKeyCode >= 131 && androidKeyCode <= 142)
         return 0x3B + (androidKeyCode - 131);
-    // 小键盘 0-9: 扫描码 = 0x52 + (key - NUMPAD_0)
-    if (androidKeyCode >= 144 && androidKeyCode <= 153)
-        return 0x52 + (androidKeyCode - 144);
+    // 小键盘 0-9: 144..153（按数字键盘物理布局，非连续）
+    if (androidKeyCode >= 144 && androidKeyCode <= 153) {
+        static const int sc[10] = {0x52, 0x4F, 0x50, 0x51, 0x4B, 0x4C, 0x4D, 0x47, 0x48, 0x49};
+        return sc[androidKeyCode - 144];
+    }
 
     switch (androidKeyCode) {
         // 修饰键
@@ -261,16 +276,15 @@ private:
     }
 
     // 注入单个键盘事件（down=true 按下，false 松开）
-    // 同时写入虚拟键码 + 扫描码 + KEYEVENTF_SCANCODE 标志，
-    // 兼容所有游戏的输入读取方式（DirectInput / Raw Input / GetAsyncKeyState）。
+    // 使用 KEYEVENTF_SCANCODE（物理扫描码）模式：MSDN 规定该模式下 wVk 必须为 0，
+    // Windows 会自动把扫描码换算成虚拟键码，DirectInput / Raw Input / GetAsyncKeyState 都能读到。
     void injectKey(int androidKeyCode, bool down) {
-        const int vk = androidKeyCodeToWindowsVK(androidKeyCode);
         const int sc = androidKeyCodeToWindowsScanCode(androidKeyCode);
-        if (vk == 0 && sc == 0) return;
+        if (sc == 0) return;
         INPUT input;
         memset(&input, 0, sizeof(input));
         input.type = INPUT_KEYBOARD;
-        input.ki.wVk = static_cast<WORD>(vk);
+        input.ki.wVk = 0;                       // SCANCODE 模式下必须为 0
         input.ki.wScan = static_cast<WORD>(sc);
         input.ki.dwFlags = KEYEVENTF_SCANCODE
                          | (down ? 0 : KEYEVENTF_KEYUP)
