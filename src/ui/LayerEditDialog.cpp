@@ -1,3 +1,20 @@
+// ============================================================
+// LayerEditDialog.cpp
+// 层编辑对话框：配置某个手柄按键的映射
+// ------------------------------------------------------------
+// 左侧为手柄按键列表，右侧为对应按键的映射编辑表单：
+//   动作类型（无/键盘/鼠标点击/鼠标长按/切换层/鼠标移动/视角控制）
+//   + 参数（键、鼠标键、目标层等）+ 子命令（组合键，最多 3 个）
+//
+// 关键设计：
+//   - "副本"模式：进入对话框时把目标层复制到 copy_，编辑期间
+//     所有改动只写副本，只有点"确定"（accept）才回写真实层；
+//     点"取消"则全部丢弃。因此编辑过程中不会污染运行中的映射。
+//   - 切换左侧按钮列表项时，会先把当前按钮的表单保存进副本，
+//     再加载新按钮的配置（saveFormFor / loadForm 配对）。
+//   - 仅"键盘按键"动作允许配置子命令（组合键，实现 Alt+3 等）。
+// ============================================================
+
 #include "LayerEditDialog.h"
 
 #include <QComboBox>
@@ -10,18 +27,25 @@
 
 namespace {
 
-// 常用键：显示名 + Android keyCode
+// ------------------------------------------------------------
+// 常用键条目：显示名 + Android keyCode
+// ------------------------------------------------------------
 struct KeyEntry {
     QString name;
     int code;
 };
 
+// ------------------------------------------------------------
+// buildKeyList：构建全部可选按键列表（显示名 -> Android keyCode）
+// ------------------------------------------------------------
+// 与 InputTypes.cpp 的 keyCodeToName 保持一致的反向映射，
+// 供键盘按键下拉框 / 子命令下拉框使用。
 QVector<KeyEntry> buildKeyList() {
     QVector<KeyEntry> keys;
-    // 字母 A-Z
+    // 字母 A-Z（AndroidKey::A 起连续）
     for (int i = 0; i < 26; ++i)
         keys.append(KeyEntry{QString(QChar('A' + i)), AndroidKey::A + i});
-    // 数字 0-9
+    // 数字 0-9（AndroidKey::N0 起连续）
     for (int i = 0; i < 10; ++i)
         keys.append(KeyEntry{QString(QChar('0' + i)), AndroidKey::N0 + i});
     // 功能键 F1-F12
@@ -31,6 +55,7 @@ QVector<KeyEntry> buildKeyList() {
     for (int i = 0; i < 10; ++i)
         keys.append(KeyEntry{QStringLiteral("Num%1").arg(i), AndroidKey::NUMPAD_0 + i});
 
+    // 散键（空格/回车/方向/符号/锁键等）
     const QVector<KeyEntry> extra = {
         {QStringLiteral("Space"), AndroidKey::SPACE},
         {QStringLiteral("Enter"), AndroidKey::ENTER},
@@ -68,6 +93,10 @@ QVector<KeyEntry> buildKeyList() {
     return keys;
 }
 
+// ------------------------------------------------------------
+// makeKeyCombo：创建键盘键下拉框
+// ------------------------------------------------------------
+// withNone=true 时首项为"无"（data=-1），供子命令使用。
 QComboBox* makeKeyCombo(bool withNone) {
     QComboBox* combo = new QComboBox;
     if (withNone)
@@ -77,6 +106,9 @@ QComboBox* makeKeyCombo(bool withNone) {
     return combo;
 }
 
+// ------------------------------------------------------------
+// makeMouseCombo：创建鼠标键下拉框（点击/长按共用）
+// ------------------------------------------------------------
 QComboBox* makeMouseCombo() {
     QComboBox* combo = new QComboBox;
     const MouseButton buttons[] = {
@@ -88,6 +120,9 @@ QComboBox* makeMouseCombo() {
     return combo;
 }
 
+// ------------------------------------------------------------
+// makeLayerCombo：创建目标层下拉框（切换层动作）
+// ------------------------------------------------------------
 QComboBox* makeLayerCombo(ControllerProfile* profile) {
     QComboBox* combo = new QComboBox;
     combo->addItem(QObject::tr("无"), QString());
@@ -96,7 +131,10 @@ QComboBox* makeLayerCombo(ControllerProfile* profile) {
     return combo;
 }
 
-// 按 data 值选中下拉项（int 或 QString 均可）
+// ------------------------------------------------------------
+// setComboIndex：按 data 值选中下拉项
+// ------------------------------------------------------------
+// 兼容 int（键码/鼠标键）与 QString（层名）两种 data 类型。
 void setComboIndex(QComboBox* combo, const QVariant& data) {
     const int idx = combo->findData(data);
     if (idx >= 0)
@@ -105,26 +143,37 @@ void setComboIndex(QComboBox* combo, const QVariant& data) {
 
 }  // namespace
 
+// ============================================================
+// 构造：初始化副本并搭建界面
+// ============================================================
+// copy_ = *layer 建立编辑副本；初始选中第一个手柄按钮并加载其配置。
 LayerEditDialog::LayerEditDialog(ControllerProfile* profile, OperationLayer* layer, QWidget* parent)
     : QDialog(parent), profile_(profile), layer_(layer), copy_(*layer) {
     setWindowTitle(tr("编辑层 - %1").arg(layerDisplayName(layer->name)));
     buildUi();
 
+    // 默认选中列表第一项（A 键）并加载表单
     buttonList_->setCurrentRow(0);
     if (buttonList_->currentItem())
         loadForm();
 }
 
+// ============================================================
+// buildUi：构建整个对话框界面
+// ============================================================
+// 布局：层名编辑行 -> （可选）触发按键提示 -> 左右分栏
+//   （左：按键列表 | 右：动作类型 + 参数 + 子命令）-> 确定/取消。
 void LayerEditDialog::buildUi() {
     auto* root = new QVBoxLayout(this);
 
-    // 层名称编辑
+    // ---- 层名称编辑 ----
     auto* nameLayout = new QHBoxLayout;
     nameLayout->addWidget(new QLabel(tr("层名称："), this));
     layerNameEdit_ = new QLineEdit(copy_.name, this);
     nameLayout->addWidget(layerNameEdit_);
     root->addLayout(nameLayout);
 
+    // 触发按键提示（仅操作层有，仅供显示；实际切换由公共层映射完成）
     if (copy_.hasTriggerButton) {
         root->addWidget(new QLabel(
             tr("触发按键（仅显示用，实际切换由公共层的“切换层”映射完成）：%1")
@@ -134,7 +183,7 @@ void LayerEditDialog::buildUi() {
 
     auto* hbox = new QHBoxLayout;
 
-    // 左侧：按钮列表
+    // ---- 左侧：手柄按键列表 ----
     buttonList_ = new QListWidget(this);
     for (const ControllerButton b : allControllerButtons()) {
         const KeyMapping* m = copy_.getMapping(b);
@@ -143,6 +192,7 @@ void LayerEditDialog::buildUi() {
             QStringLiteral("%1   %2").arg(controllerButtonDisplayName(b), desc), buttonList_);
         item->setData(Qt::UserRole, static_cast<int>(b));
     }
+    // 切换选中项：先把上一个按钮的表单存进副本，再加载新按钮
     connect(buttonList_, &QListWidget::currentItemChanged, this,
             [this](QListWidgetItem* current, QListWidgetItem* previous) {
                 if (previous)
@@ -152,19 +202,23 @@ void LayerEditDialog::buildUi() {
             });
     hbox->addWidget(buttonList_, 1);
 
-    // 右侧：编辑表单
+    // ---- 右侧：映射编辑表单 ----
     auto* form = new QVBoxLayout;
 
+    // 动作类型下拉框：索引与 paramStack_ 页一一对应
     actionTypeCombo_ = new QComboBox(this);
     actionTypeCombo_->addItems({
         tr("无（不映射）"), tr("键盘按键"), tr("鼠标点击"), tr("鼠标长按"),
         tr("切换层"), tr("鼠标移动"), tr("视角控制"),
     });
+    // 切换动作类型时刷新参数页
     connect(actionTypeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &LayerEditDialog::updateParamPage);
     form->addWidget(new QLabel(tr("动作类型"), this));
     form->addWidget(actionTypeCombo_);
 
+    // 参数区（QStackedWidget 按动作类型切换页面）：
+    //   0 无 | 1 键盘 | 2 鼠标点击 | 3 鼠标长按 | 4 切换层 | 5 鼠标移动 | 6 视角控制
     paramStack_ = new QStackedWidget(this);
     paramStack_->addWidget(new QWidget(this));                     // 0 无
     keyCombo_ = makeKeyCombo(false);
@@ -178,6 +232,7 @@ void LayerEditDialog::buildUi() {
     paramStack_->addWidget(new QLabel(tr("由右摇杆输入驱动"), this)); // 6 视角控制
     form->addWidget(paramStack_);
 
+    // 子命令（组合键）：仅键盘按键动作生效，最多 3 个
     form->addWidget(new QLabel(tr("子命令（组合键，最多 3 个；仅在键盘按键时生效）"), this));
     auto* subRow = new QHBoxLayout;
     for (int i = 0; i < 3; ++i) {
@@ -190,6 +245,7 @@ void LayerEditDialog::buildUi() {
     hbox->addLayout(form, 1);
     root->addLayout(hbox, 1);
 
+    // 确定 / 取消
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     connect(buttons, &QDialogButtonBox::accepted, this, &LayerEditDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &LayerEditDialog::reject);
@@ -198,17 +254,25 @@ void LayerEditDialog::buildUi() {
     resize(620, 480);
 }
 
+// ============================================================
+// currentButton：返回左侧当前选中的手柄按钮
+// ============================================================
 ControllerButton LayerEditDialog::currentButton() const {
     if (QListWidgetItem* item = buttonList_->currentItem())
         return static_cast<ControllerButton>(item->data(Qt::UserRole).toInt());
     return ControllerButton::A;
 }
 
+// ============================================================
+// loadForm：把副本中"当前按钮"的映射加载进表单控件
+// ============================================================
+// loading_ 置位可抑制 updateParamPage 的连带保存动作，避免循环。
 void LayerEditDialog::loadForm() {
     loading_ = true;
     const ControllerButton b = currentButton();
     const KeyMapping* m = copy_.getMapping(b);
 
+    // 无映射 -> 动作类型选"无"；有映射 -> 按类型填充控件
     if (!m) {
         actionTypeCombo_->setCurrentIndex(0);
     } else {
@@ -238,6 +302,7 @@ void LayerEditDialog::loadForm() {
         }
     }
 
+    // 子命令：逐个填充（无子命令时保持"无"）
     for (int i = 0; i < 3; ++i) {
         subCombos_[i]->setCurrentIndex(0);
         if (m && i < m->subCommands.size())
@@ -248,12 +313,17 @@ void LayerEditDialog::loadForm() {
     updateParamPage(actionTypeCombo_->currentIndex());
 }
 
+// ============================================================
+// saveFormFor：把表单当前内容保存进副本的指定按钮映射
+// ============================================================
+// 动作类型为"无"时移除该按钮映射（等价于清除配置）。
+// 仅键盘按键动作收集子命令，且过滤掉与主动作相同或重复的键。
 void LayerEditDialog::saveFormFor(ControllerButton button) {
     if (buttonList_ == nullptr)
         return;
 
     const int typeIdx = actionTypeCombo_->currentIndex();
-    if (typeIdx <= 0) {  // 无（不映射）
+    if (typeIdx <= 0) {  // 无（不映射）：移除现有映射
         copy_.buttonMappings.remove(button);
         return;
     }
@@ -271,7 +341,7 @@ void LayerEditDialog::saveFormFor(ControllerButton button) {
             m.action = MappedAction::mouseToggle(
                 static_cast<MouseButton>(mouseCombo_->currentData().toInt()));
             break;
-        case 4: {  // 切换层
+        case 4: {  // 切换层：目标层为空则视为清除
             const QString layerName = layerCombo_->currentData().toString();
             if (layerName.isEmpty()) {
                 copy_.buttonMappings.remove(button);
@@ -290,6 +360,7 @@ void LayerEditDialog::saveFormFor(ControllerButton button) {
             return;
     }
 
+    // 收集子命令：跳过"无"、与主动作相同的键、已存在的重复键
     for (int i = 0; i < 3; ++i) {
         const int sub = subCombos_[i]->currentData().toInt();
         if (sub >= 0 && sub != m.action.keyCode && !m.subCommands.contains(sub))
@@ -298,6 +369,11 @@ void LayerEditDialog::saveFormFor(ControllerButton button) {
     copy_.buttonMappings.insert(button, m);
 }
 
+// ============================================================
+// updateParamPage：切换参数页（并保存当前按钮表单）
+// ============================================================
+// 由动作类型下拉框触发；若是用户操作（非 loading 加载中），
+// 则先把当前按钮表单写入副本，保证类型切换不丢数据。
 void LayerEditDialog::updateParamPage(int typeIndex) {
     paramStack_->setCurrentIndex(typeIndex);
     if (loading_)
@@ -305,6 +381,11 @@ void LayerEditDialog::updateParamPage(int typeIndex) {
     saveFormFor(currentButton());
 }
 
+// ============================================================
+// accept：确定并回写
+// ============================================================
+// 1) 保存当前按钮表单；2) 把编辑框里的新层名写入副本；
+// 3) 整个副本回写真实层（layer_）并关闭对话框。
 void LayerEditDialog::accept() {
     saveFormFor(currentButton());
     // 更新层名称

@@ -7,7 +7,11 @@
 #include <mmsystem.h>
 
 // =====================================================================
-// 键鼠映射器实现
+// KeyboardMouseMapper —— 键鼠映射器实现
+//
+// 执行 SteamInput 广播的按钮/摇杆事件，转换为 Windows 键鼠注入。
+// 包括：按钮映射（键盘+子命令/鼠标单击/MouseToggle 锁存）、
+//       左摇杆 WASD 移动、右摇杆 125Hz 平滑视角控制线程。
 // =====================================================================
 
 KeyboardMouseMapper::KeyboardMouseMapper(SteamInput* input, InputInjector* injector, QObject* parent)
@@ -17,6 +21,7 @@ KeyboardMouseMapper::~KeyboardMouseMapper() {
     stop();
 }
 
+// 开始映射：连接 SteamInput 信号、同步全局设置、启动 look 线程
 void KeyboardMouseMapper::start() {
     if (running_.load()) return;
     connect(input_, &SteamInput::buttonMapped,
@@ -30,6 +35,7 @@ void KeyboardMouseMapper::start() {
     lookThread_ = std::thread(&KeyboardMouseMapper::lookLoop, this);
 }
 
+// 停止映射：停 look 线程、断开信号、释放全部注入状态（含 MouseToggle 锁存）
 void KeyboardMouseMapper::stop() {
     if (!running_.load()) return;
     running_.store(false);
@@ -40,6 +46,9 @@ void KeyboardMouseMapper::stop() {
     releaseAllInputs();
 }
 
+// 释放全部注入状态（物理按键/鼠标键 + 所有保持状态，含 MouseToggle 锁存）。
+// 供 stop() 和手柄断开（main.cpp 连接 connectedChanged(false)）时调用，
+// 避免 toggle 保持的鼠标键在断开后卡死。
 void KeyboardMouseMapper::releaseAllInputs() {
     // 释放所有物理注入（含 MouseToggle 保持按下的鼠标键）
     injector_->releaseAll();
@@ -54,6 +63,7 @@ void KeyboardMouseMapper::releaseAllInputs() {
     smoothedLookY_ = 0.f;
 }
 
+// 配置被替换：将全局设置同步到 look 线程的原子量（smoothing 等）
 void KeyboardMouseMapper::onProfileChanged() {
     const GlobalSettings& s = input_->profile.globalSettings;
     lookSensitivity_.store(s.lookSensitivity);
@@ -65,8 +75,11 @@ void KeyboardMouseMapper::onProfileChanged() {
 // 按钮映射执行
 // ---------------------------------------------------------------
 
+// 按钮命中映射入口。
+// 松开：按「已注入状态」精确释放（与当前层映射无关，
+//       防止长按触发键切换层后松开时释放错对象导致按键卡死）。
+// 按下：根据动作类型分发到具体处理器。
 void KeyboardMouseMapper::onButtonMapped(ControllerButton button, bool isPressed, const KeyMapping& mapping) {
-    // 松开：按"已注入状态"精确释放（与当前层映射无关，防止切层导致按键卡死）
     if (!isPressed) {
         releaseButtonInjection(button);
         return;
@@ -90,8 +103,12 @@ void KeyboardMouseMapper::onButtonMapped(ControllerButton button, bool isPressed
     }
 }
 
+// 按「已注入状态」释放某按钮的全部注入：
+//   子命令逆序 -> 主键 -> 鼠标键。
+// 注意：不处理 MouseToggle 锁存（toggle 是用户主动锁存机制，
+//       松开手柄键不应改变其状态，与安卓版语义一致）。
 void KeyboardMouseMapper::releaseButtonInjection(ControllerButton button) {
-    // 释放子命令（逆序）
+    // 释放子命令（逆序，与按下顺序相反）
     if (pressedSubKeys_.contains(button)) {
         const QVector<int>& subs = pressedSubKeys_.value(button);
         for (int i = subs.size() - 1; i >= 0; --i)
@@ -108,6 +125,8 @@ void KeyboardMouseMapper::releaseButtonInjection(ControllerButton button) {
     }
 }
 
+// 键盘映射：先按下主键，再依次按下各子命令（组合键，如 Alt+3）。
+// 子命令会过滤掉与主键重复的项；已有主键按下时忽略重复触发。
 void KeyboardMouseMapper::handleKeyboardKey(ControllerButton button, int mainKeyCode, const QVector<int>& subs) {
     if (pressedMainKeys_.contains(button)) return;  // 已按下，忽略重复
 
@@ -127,14 +146,18 @@ void KeyboardMouseMapper::handleKeyboardKey(ControllerButton button, int mainKey
     pressedSubKeys_.insert(button, validSubs);
 }
 
+// 鼠标单击：按下/松开跟随手柄（松开时由 releaseButtonInjection 释放）
 void KeyboardMouseMapper::handleMouseClick(ControllerButton button, MouseButton mb) {
     if (pressedMouseButtons_.contains(button)) return;
     injector_->sendMouseDown(mb);
     pressedMouseButtons_.insert(button, mb);
 }
 
+// 鼠标长按锁存（MouseToggle）：每次按下切换保持状态。
+//  - 首次按下：注入按下并记录（之后松开手柄键不释放）；
+//  - 再次按下：注入松开并清除记录。
+// 松开手柄键时 releaseButtonInjection 不处理该记录（保持锁存状态）。
 void KeyboardMouseMapper::handleMouseToggle(ControllerButton button, MouseButton mb) {
-    // 按下切换保持状态，松开时由 releaseButtonInjection 保持（不释放）
     if (toggledMouseButtons_.contains(button)) {
         injector_->sendMouseUp(mb);
         toggledMouseButtons_.remove(button);
@@ -152,9 +175,12 @@ void KeyboardMouseMapper::onStickMapped(ControllerStick stick, float x, float y)
     handleStick(stick, x, y);
 }
 
+// 摇杆处理：
+//   - 右摇杆：仅记录最新值到原子量（look 线程按固定节拍读取并平滑发送）
+//   - 左摇杆：WASD 8 方向移动（阈值 0.5），
+//     与上一次按键状态做差集，只按下新增、释放消失的键
 void KeyboardMouseMapper::handleStick(ControllerStick stick, float x, float y) {
     if (stick == ControllerStick::RIGHT_STICK) {
-        // 仅记录最新值，由 look 线程按固定频率发送
         latestLookX_.store(x);
         latestLookY_.store(y);
         return;
@@ -173,7 +199,9 @@ void KeyboardMouseMapper::handleStick(ControllerStick stick, float x, float y) {
     if (left) target.insert(AndroidKey::A);
     if (right) target.insert(AndroidKey::D);
 
-    // 计算需要释放的键（原按下但当前未按）
+    // 计算需要释放的键（原按下但当前未按）。
+    // 注意：先收集到 toRelease 再统一处理，
+    // 避免遍历 QSet 的同时修改容器导致未定义行为。
     QVector<int> toRelease;
     for (const int kc : leftStickPressedKeys_) {
         if (!target.contains(kc))
@@ -196,8 +224,10 @@ void KeyboardMouseMapper::handleStick(ControllerStick stick, float x, float y) {
 // 视角循环（125Hz）
 // ---------------------------------------------------------------
 
+// look 线程主循环：固定 8ms 节拍调用 processLookTick。
+// 使用 timeBeginPeriod(1) 提高系统计时器分辨率，保证节拍准确；
+// 实际处理耗时计入 dt（限制在 0.001~0.05s），保证位移积分的时间基准。
 void KeyboardMouseMapper::lookLoop() {
-    // 提高 Windows 计时器分辨率，保证 8ms 节拍准确
     timeBeginPeriod(1);
     auto lastTick = std::chrono::steady_clock::now();
     while (running_.load()) {
@@ -217,6 +247,13 @@ void KeyboardMouseMapper::lookLoop() {
     timeEndPeriod(1);
 }
 
+// look 线程单次节拍：右摇杆 -> 平滑 -> 位移 -> 注入鼠标移动。
+// 处理流水线：
+//   1. 幅值钳制：mag 超过 1 时归一化
+//   2. 加速度曲线：pow(mag, accel)，推得越深位移越大
+//   3. 时间常数 EMA 平滑：alpha = 1-exp(-dt/tau)，tau = smoothing*0.048s
+//      （smoothing=0 时 tau=0，直接采用当前值，无平滑）
+//   4. 位移积分：dx = 平滑值 × 灵敏度 × 480px/s × dt
 void KeyboardMouseMapper::processLookTick(float dt) {
     float rx = latestLookX_.load();
     float ry = latestLookY_.load();
@@ -224,7 +261,7 @@ void KeyboardMouseMapper::processLookTick(float dt) {
     const float smoothing = lookSmoothing_.load();
     const float accel = qBound(0.5f, lookAcceleration_.load(), 3.0f);
 
-    // 幅值钳制
+    // 幅值钳制：摇杆输入理论上 <=1，但小数误差可能略超，归一化处理
     float mag = std::sqrt(rx * rx + ry * ry);
     if (mag > 1.f) {
         rx /= mag;
@@ -232,7 +269,7 @@ void KeyboardMouseMapper::processLookTick(float dt) {
         mag = 1.f;
     }
 
-    // 加速曲线：幅值 -> 更高幅值
+    // 加速曲线：幅值 -> 更高幅值（推得越深，输出增长越快）
     if (rx != 0.f || ry != 0.f) {
         const float curve = std::pow(mag, accel);
         const float scale = curve / mag;
@@ -240,13 +277,13 @@ void KeyboardMouseMapper::processLookTick(float dt) {
         ry *= scale;
     }
 
-    // 时间常数 EMA 平滑
+    // 时间常数 EMA 平滑（低通滤波，消除摇杆抖动）
     const float tau = qBound(0.f, smoothing, 0.95f) * LOOK_SMOOTH_TAU_MAX;
     const float alpha = (tau <= 0.f) ? 1.f : (1.f - std::exp(-dt / tau));
     smoothedLookX_ = smoothedLookX_ * (1.f - alpha) + rx * alpha;
     smoothedLookY_ = smoothedLookY_ * (1.f - alpha) + ry * alpha;
 
-    // 位移积分：480px/秒 × 灵敏度 × dt
+    // 位移积分：480px/秒 × 灵敏度 × dt（亚像素由注入器余量累积补发）
     const float dx = smoothedLookX_ * sens * LOOK_SPEED_PX_PER_SEC * dt;
     const float dy = smoothedLookY_ * sens * LOOK_SPEED_PX_PER_SEC * dt;
     if (dx != 0.f || dy != 0.f)

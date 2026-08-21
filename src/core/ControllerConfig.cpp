@@ -1,3 +1,24 @@
+// ============================================================
+// ControllerConfig.cpp
+// 配置序列化 / 反序列化（JSON）
+// ------------------------------------------------------------
+// 职责：把内存中的 ControllerProfile 与磁盘上的 JSON 配置互相转换。
+// 配置文件名由 ConfigManager 决定（steamlike_config.json），
+// 本文件只负责格式，不负责文件读写。
+//
+// 兼容性约定（重要）：
+//   - 动作 type 字符串与字段名与安卓版保持一致，以便直接复用
+//     安卓端导出的配置（version=2）。
+//   - 鼠标按钮名使用大写（LEFT/RIGHT/...），与安卓版枚举一致。
+//   - 层同时持久化 id 与 name：id 唯一固定用于运行时定位，
+//     name 仅用于显示可任意改名。解析时若缺 id 字段则回退到 name
+//     （兼容早期/安卓配置）。
+//
+// 容错策略：对无法识别的动作类型/按钮名/超限子命令，采取"跳过
+// 该条映射"的宽松策略，而不是整体解析失败；只有 JSON 语法错误、
+// 根节点不是对象、版本号不匹配才抛异常。
+// ============================================================
+
 #include "ControllerConfig.h"
 
 #include <QJsonArray>
@@ -6,6 +27,7 @@
 
 namespace {
 
+// ---- 动作 type 的字符串常量（与配置文件/安卓版一一对应）----
 const QString kTypeKeyboard = QStringLiteral("keyboard");
 const QString kTypeMouse = QStringLiteral("mouse");
 const QString kTypeMouseToggle = QStringLiteral("mouseToggle");
@@ -13,6 +35,10 @@ const QString kTypeSwitchLayer = QStringLiteral("switchLayer");
 const QString kTypeMouseMove = QStringLiteral("mouseMove");
 const QString kTypeLookAround = QStringLiteral("lookAround");
 
+// ============================================================
+// actionToJson：MappedAction -> QJsonObject
+// ============================================================
+// 按动作类型写入对应的结构化字段（keyCode / button / layerName 等）。
 QJsonObject actionToJson(const MappedAction& action) {
     QJsonObject json;
     switch (action.type) {
@@ -42,7 +68,11 @@ QJsonObject actionToJson(const MappedAction& action) {
     return json;
 }
 
-// 解析动作；失败返回 false
+// ============================================================
+// parseAction：QJsonObject -> MappedAction
+// ============================================================
+// 解析单个动作；成功返回 true 并写 *out，失败返回 false。
+// 失败原因可能是：未知 type、缺少必要字段、鼠标按钮名无法识别等。
 bool parseAction(const QJsonObject& json, MappedAction* out) {
     const QString type = json.value(QStringLiteral("type")).toString();
     if (type == kTypeKeyboard) {
@@ -66,7 +96,7 @@ bool parseAction(const QJsonObject& json, MappedAction* out) {
     }
     if (type == kTypeSwitchLayer) {
         const QString name = json.value(QStringLiteral("layerName")).toString();
-        if (name.isEmpty()) return false;
+        if (name.isEmpty()) return false;   // 缺少目标层名视为无效
         *out = MappedAction::switchLayer(name);
         return true;
     }
@@ -81,6 +111,10 @@ bool parseAction(const QJsonObject& json, MappedAction* out) {
     return false;  // 未知类型
 }
 
+// ============================================================
+// mappingToJson：KeyMapping -> QJsonObject
+// ============================================================
+// 包含主动作 action 与子命令数组 subCommands（组合键）。
 QJsonObject mappingToJson(const KeyMapping& mapping) {
     QJsonObject json;
     json.insert(QStringLiteral("action"), actionToJson(mapping.action));
@@ -91,7 +125,11 @@ QJsonObject mappingToJson(const KeyMapping& mapping) {
     return json;
 }
 
-// 解析单个映射；失败返回 false
+// ============================================================
+// parseMapping：QJsonObject -> KeyMapping
+// ============================================================
+// 解析单条映射；失败返回 false（由调用方跳过该条）。
+// 子命令数量超过 MAX_SUB_COMMANDS 时按无效处理（防御外部配置）。
 bool parseMapping(const QJsonObject& json, KeyMapping* out) {
     const QJsonValue actionVal = json.value(QStringLiteral("action"));
     if (!actionVal.isObject()) return false;
@@ -112,9 +150,14 @@ bool parseMapping(const QJsonObject& json, KeyMapping* out) {
     return true;
 }
 
+// ============================================================
+// layerToJson：OperationLayer -> QJsonObject
+// ============================================================
+// id 与 name 分开持久化：id 用于运行时正确定位层（支持重命名），
+// name 仅用于显示。triggerButton 与 buttonMappings 一并保存。
 QJsonObject layerToJson(const OperationLayer& layer) {
     QJsonObject json;
-    // id 与 name 分开持久化，支持重命名后重启仍能正确定位层
+    // id 为空时回退写 name，保证老数据/手写数据也能有可读 id
     json.insert(QStringLiteral("id"), layer.id.isEmpty() ? layer.name : layer.id);
     json.insert(QStringLiteral("name"), layer.name);
     if (layer.hasTriggerButton)
@@ -126,6 +169,11 @@ QJsonObject layerToJson(const OperationLayer& layer) {
     return json;
 }
 
+// ============================================================
+// parseLayer：QJsonObject -> OperationLayer
+// ============================================================
+// 解析一个层。isCommon 指示是否公共层（公共层不解析 triggerButton）。
+// id 缺失时回退到 name（兼容旧配置/安卓配置），公共层固定为 "Common"。
 OperationLayer parseLayer(const QJsonObject& json, bool isCommon) {
     OperationLayer layer;
     const QString name = json.value(QStringLiteral("name")).toString();
@@ -135,6 +183,7 @@ OperationLayer parseLayer(const QJsonObject& json, bool isCommon) {
     if (layer.id.isEmpty())
         layer.id = isCommon ? QStringLiteral("Common") : name;
 
+    // 触发按键：仅操作层有（公共层的触发信息由各操作层自持，供 UI 显示）
     if (!isCommon) {
         ControllerButton tb = ControllerButton::A;
         if (controllerButtonFromName(json.value(QStringLiteral("triggerButton")).toString(), &tb)) {
@@ -143,13 +192,14 @@ OperationLayer parseLayer(const QJsonObject& json, bool isCommon) {
         }
     }
 
+    // 按钮映射表：逐条解析，非法条目直接跳过
     const QJsonValue mappingsVal = json.value(QStringLiteral("buttonMappings"));
     if (mappingsVal.isObject()) {
         const QJsonObject mappings = mappingsVal.toObject();
         for (auto it = mappings.constBegin(); it != mappings.constEnd(); ++it) {
             ControllerButton button;
-            if (!controllerButtonFromName(it.key(), &button)) continue;
-            if (!it.value().isObject()) continue;
+            if (!controllerButtonFromName(it.key(), &button)) continue;  // 未知按钮名
+            if (!it.value().isObject()) continue;                        // 结构非法
             KeyMapping mapping;
             if (parseMapping(it.value().toObject(), &mapping))
                 layer.buttonMappings.insert(button, mapping);
@@ -162,10 +212,16 @@ OperationLayer parseLayer(const QJsonObject& json, bool isCommon) {
 
 namespace ControllerConfig {
 
+// ============================================================
+// toJson：ControllerProfile -> JSON 字节串
+// ============================================================
+// 组装根对象：版本号 + 全局设置 + 公共层 + 操作层数组。
+// 返回格式化（带缩进）的 JSON，便于用户直接查看/手工编辑。
 QByteArray toJson(const ControllerProfile& profile, int indent) {
     QJsonObject root;
     root.insert(QStringLiteral("version"), CONFIG_VERSION);
 
+    // 全局设置：死区 / 视角灵敏度 / 光标速度 / 平滑 / 加速
     QJsonObject gs;
     gs.insert(QStringLiteral("deadzone"), static_cast<double>(profile.globalSettings.deadzone));
     gs.insert(QStringLiteral("lookSensitivity"), static_cast<double>(profile.globalSettings.lookSensitivity));
@@ -184,6 +240,11 @@ QByteArray toJson(const ControllerProfile& profile, int indent) {
     return QJsonDocument(root).toJson(QJsonDocument::Indented);
 }
 
+// ============================================================
+// fromJson：JSON 字节串 -> ControllerProfile
+// ============================================================
+// 严格校验：语法错误 / 非对象根 / 版本不匹配时抛 std::runtime_error。
+// 字段级容错（缺全局设置、缺公共层、某条映射非法等）则取默认/跳过。
 ControllerProfile fromJson(const QByteArray& json) {
     QJsonParseError err{};
     const QJsonDocument doc = QJsonDocument::fromJson(json, &err);
@@ -196,6 +257,7 @@ ControllerProfile fromJson(const QByteArray& json) {
         throw std::runtime_error("Unsupported config version: " + std::to_string(version));
 
     ControllerProfile profile;
+    // 全局设置：可缺省，逐字段带默认值读取
     profile.globalSettings = GlobalSettings();
     if (root.value(QStringLiteral("globalSettings")).isObject()) {
         const QJsonObject gs = root.value(QStringLiteral("globalSettings")).toObject();
@@ -208,11 +270,13 @@ ControllerProfile fromJson(const QByteArray& json) {
         profile.globalSettings = s;
     }
 
+    // 公共层：缺省时回退到默认公共层
     const QJsonValue commonVal = root.value(QStringLiteral("commonLayer"));
     profile.commonLayer = commonVal.isObject()
         ? parseLayer(commonVal.toObject(), /*isCommon=*/true)
         : OperationLayer(QStringLiteral("Common"));
 
+    // 操作层数组
     if (root.value(QStringLiteral("layers")).isArray()) {
         const QJsonArray arr = root.value(QStringLiteral("layers")).toArray();
         profile.layers.clear();
