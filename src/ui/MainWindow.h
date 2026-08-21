@@ -46,8 +46,6 @@ private slots:
     void onApplySettings();
     void onCheckForeground();
     void closeEvent(QCloseEvent* event) override;
-    void hideEvent(QHideEvent* event) override;
-    void showEvent(QShowEvent* event) override;
 
 private:
     // 根据当前 profile 重建层按钮文本（含显示名）
@@ -73,7 +71,6 @@ private:
     QCheckBox* invertLookYCheck_ = nullptr;
     QCheckBox* releaseOnFgCheck_ = nullptr;
     QCheckBox* confirmOnCloseCheck_ = nullptr;
-    QCheckBox* mappingEnabledCheck_ = nullptr;
 
     QTimer* foregroundTimer_ = nullptr;
     void* lastForegroundHwnd_ = nullptr;

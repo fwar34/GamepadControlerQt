@@ -174,7 +174,6 @@ struct GlobalSettings {
     int overlayY = -1;               // 悬浮窗 Y 坐标（-1 表示未设置，使用默认位置）
     bool releaseOnForegroundChange = true;  // 切换前台窗口时释放所有按键
     bool confirmOnClose = true;             // 关闭时弹出确认对话框（退出/最小化）
-    bool mappingEnabled = true;             // 映射总开关
 };
 
 // ---------------------------------------------------------------------

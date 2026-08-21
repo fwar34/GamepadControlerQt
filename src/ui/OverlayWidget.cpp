@@ -23,10 +23,6 @@
 #include <QLabel>
 #include <QMouseEvent>
 
-#ifdef Q_OS_WIN
-#include <windows.h>
-#endif
-
 // ============================================================
 // 构造：搭建悬浮窗外观与初始位置
 // ============================================================
@@ -163,14 +159,9 @@ void OverlayWidget::mouseReleaseEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
         // 没有实际移动过 → 视为点击，将主窗口拉到前台
         if (!dragMoved_ && mainWindow_) {
-#ifdef Q_OS_WIN
-            HWND hwnd = reinterpret_cast<HWND>(mainWindow_->winId());
-            ShowWindow(hwnd, SW_RESTORE);
-            SetForegroundWindow(hwnd);
-#else
+            mainWindow_->showNormal();
             mainWindow_->raise();
             mainWindow_->activateWindow();
-#endif
         }
         dragging_ = false;
         dragMoved_ = false;
