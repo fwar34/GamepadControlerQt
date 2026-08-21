@@ -82,6 +82,70 @@ int androidKeyCodeToWindowsVK(int androidKeyCode) {
     }
 }
 
+// ---------------------------------------------------------------------
+// androidKeyCodeToWindowsScanCode：Android KeyCode -> Windows 扫描码（硬件码）
+// 硬编码映射，不依赖 MapVirtualKey（后台线程可能无正确键盘布局上下文）。
+// 扫描码用于 KEYEVENTF_SCANCODE 模式，DirectInput/Raw Input 游戏主要识别此码。
+// ---------------------------------------------------------------------
+int androidKeyCodeToWindowsScanCode(int androidKeyCode) {
+    // 字母 A-Z: 扫描码 = 0x1E + (key - A)，与 QWERTY 物理位置一致
+    if (androidKeyCode >= 29 && androidKeyCode <= 54)
+        return 0x1E + (androidKeyCode - 29);
+    // 数字 0-9: 扫描码 = 0x0B + (key - 0)
+    if (androidKeyCode >= 7 && androidKeyCode <= 16)
+        return 0x0B + (androidKeyCode - 7);
+    // F1-F12: 扫描码 = 0x3B + (key - F1)
+    if (androidKeyCode >= 131 && androidKeyCode <= 142)
+        return 0x3B + (androidKeyCode - 131);
+    // 小键盘 0-9: 扫描码 = 0x52 + (key - NUMPAD_0)
+    if (androidKeyCode >= 144 && androidKeyCode <= 153)
+        return 0x52 + (androidKeyCode - 144);
+
+    switch (androidKeyCode) {
+        // 修饰键
+        case AndroidKey::SHIFT_LEFT: return 0x2A;
+        case AndroidKey::SHIFT_RIGHT: return 0x36;
+        case AndroidKey::CTRL_LEFT: return 0x1D;
+        case AndroidKey::CTRL_RIGHT: return 0x1D;  // E0 扩展
+        case AndroidKey::ALT_LEFT: return 0x38;
+        case AndroidKey::ALT_RIGHT: return 0x38;   // E0 扩展
+        // 控制/功能键
+        case AndroidKey::SPACE: return 0x39;
+        case AndroidKey::ENTER: return 0x1C;
+        case AndroidKey::TAB: return 0x0F;
+        case AndroidKey::ESCAPE: return 0x01;
+        case AndroidKey::BACK: return 0x0E;
+        case AndroidKey::DEL: return 0x53;   // E0 扩展
+        case AndroidKey::INSERT: return 0x52; // E0 扩展
+        case AndroidKey::HOME: return 0x47;   // E0 扩展
+        case AndroidKey::PAGE_UP: return 0x49; // E0 扩展
+        case AndroidKey::PAGE_DOWN: return 0x51; // E0 扩展
+        case AndroidKey::MOVE_END: return 0x4F; // E0 扩展
+        // 方向键（E0 扩展）
+        case AndroidKey::DPAD_UP: return 0x48;
+        case AndroidKey::DPAD_DOWN: return 0x50;
+        case AndroidKey::DPAD_LEFT: return 0x4B;
+        case AndroidKey::DPAD_RIGHT: return 0x4D;
+        // 符号键
+        case AndroidKey::MINUS: return 0x0C;
+        case AndroidKey::EQUALS: return 0x0D;
+        case AndroidKey::LEFT_BRACKET: return 0x1A;
+        case AndroidKey::RIGHT_BRACKET: return 0x1B;
+        case AndroidKey::BACKSLASH: return 0x2B;
+        case AndroidKey::SEMICOLON: return 0x27;
+        case AndroidKey::APOSTROPHE: return 0x28;
+        case AndroidKey::COMMA: return 0x33;
+        case AndroidKey::PERIOD: return 0x34;
+        case AndroidKey::SLASH: return 0x35;
+        case AndroidKey::GRAVE: return 0x29;
+        // 锁键
+        case AndroidKey::CAPS_LOCK: return 0x3A;
+        case AndroidKey::NUM_LOCK: return 0x45;  // E0 扩展（Numpad）
+        case AndroidKey::SCROLL_LOCK: return 0x46;
+        default: return 0;
+    }
+}
+
 namespace {
 
 // 鼠标按键对应的 SendInput 事件标志（按下/松开）与 XButton 数据
@@ -117,23 +181,21 @@ class WindowsInputInjector : public InputInjector {
 public:
     bool isAvailable() const override { return true; }
 
-    // 按下按键（入参为 Android KeyCode -> 转 VK；去重后注入）
+    // 按下按键（入参为 Android KeyCode；去重后注入）
     void sendKeyDown(int androidKeyCode) override {
-        const int vk = androidKeyCodeToWindowsVK(androidKeyCode);
-        if (vk == 0) return;
+        if (androidKeyCodeToWindowsVK(androidKeyCode) == 0) return;
         QMutexLocker locker(&mutex_);
-        if (pressedKeys_.contains(vk)) return;   // 已按下，忽略重复
-        pressedKeys_.insert(vk);
-        injectKey(static_cast<WORD>(vk), true);
+        if (pressedKeys_.contains(androidKeyCode)) return;   // 已按下，忽略重复
+        pressedKeys_.insert(androidKeyCode);
+        injectKey(androidKeyCode, true);
     }
 
     // 松开按键（只在确实按下过时发送）
     void sendKeyUp(int androidKeyCode) override {
-        const int vk = androidKeyCodeToWindowsVK(androidKeyCode);
-        if (vk == 0) return;
+        if (androidKeyCodeToWindowsVK(androidKeyCode) == 0) return;
         QMutexLocker locker(&mutex_);
-        if (!pressedKeys_.remove(vk)) return;
-        injectKey(static_cast<WORD>(vk), false);
+        if (!pressedKeys_.remove(androidKeyCode)) return;
+        injectKey(androidKeyCode, false);
     }
 
     // 按下鼠标按键（去重）
@@ -170,8 +232,8 @@ public:
     // 防止按键卡死。同时清零亚像素余量。
     void releaseAll() override {
         QMutexLocker locker(&mutex_);
-        for (const int vk : pressedKeys_)
-            injectKey(static_cast<WORD>(vk), false);
+        for (const int ak : pressedKeys_)
+            injectKey(ak, false);
         pressedKeys_.clear();
         for (const MouseButton b : pressedButtons_)
             injectMouseButtonRaw(b, false);
@@ -181,14 +243,37 @@ public:
     }
 
 private:
+    // 判断 Android KeyCode 是否为扩展键（需要 KEYEVENTF_EXTENDEDKEY）
+    static bool isExtendedKey(int androidKeyCode) {
+        return androidKeyCode == AndroidKey::DPAD_UP
+            || androidKeyCode == AndroidKey::DPAD_DOWN
+            || androidKeyCode == AndroidKey::DPAD_LEFT
+            || androidKeyCode == AndroidKey::DPAD_RIGHT
+            || androidKeyCode == AndroidKey::INSERT
+            || androidKeyCode == AndroidKey::DEL
+            || androidKeyCode == AndroidKey::HOME
+            || androidKeyCode == AndroidKey::MOVE_END
+            || androidKeyCode == AndroidKey::PAGE_UP
+            || androidKeyCode == AndroidKey::PAGE_DOWN
+            || androidKeyCode == AndroidKey::CTRL_RIGHT
+            || androidKeyCode == AndroidKey::ALT_RIGHT
+            || androidKeyCode == AndroidKey::NUM_LOCK;
+    }
+
     // 注入单个键盘事件（down=true 按下，false 松开）
-    void injectKey(WORD vk, bool down) {
+    // 使用 KEYEVENTF_SCANCODE 模式：只写扫描码，不写虚拟键码。
+    // DirectInput / Raw Input 游戏（如 WoW）主要识别扫描码，
+    // 虚拟键码模式可能被忽略。
+    void injectKey(int androidKeyCode, bool down) {
+        const int sc = androidKeyCodeToWindowsScanCode(androidKeyCode);
+        if (sc == 0) return;
         INPUT input;
         memset(&input, 0, sizeof(input));
         input.type = INPUT_KEYBOARD;
-        input.ki.wVk = vk;
-        input.ki.wScan = 0;
-        input.ki.dwFlags = down ? 0 : KEYEVENTF_KEYUP;
+        input.ki.wScan = static_cast<WORD>(sc);
+        input.ki.dwFlags = KEYEVENTF_SCANCODE
+                         | (down ? 0 : KEYEVENTF_KEYUP)
+                         | (isExtendedKey(androidKeyCode) ? KEYEVENTF_EXTENDEDKEY : 0);
         SendInput(1, &input, sizeof(INPUT));
     }
 

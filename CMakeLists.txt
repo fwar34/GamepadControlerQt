@@ -59,6 +59,32 @@ target_link_libraries(GamepadControllerQt PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
 if(WIN32)
     target_compile_definitions(GamepadControllerQt PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
     target_link_libraries(GamepadControllerQt PRIVATE winmm xinput)
+
+    # ---- UAC 管理员清单 ----
+    # 目标游戏（如 WoW）常以管理员权限运行（高完整性级别），普通权限的
+    # SendInput 注入会被 Windows UIPI 静默屏蔽，表现为"只有本程序在前台
+    # 时手柄操作才生效"。声明 requireAdministrator 让本程序以管理员权限
+    # 运行，注入即可到达高权限前台窗口。若不需要提升，删除本段即可。
+    set(MANIFEST_FILE ${CMAKE_CURRENT_SOURCE_DIR}/src/app.manifest)
+    if(MINGW)
+        # MinGW：用 windres 把 manifest 编译成 COFF 资源对象并链接进 exe
+        set(MANIFEST_RC ${CMAKE_CURRENT_BINARY_DIR}/app_manifest.rc)
+        set(MANIFEST_OBJ ${CMAKE_CURRENT_BINARY_DIR}/app_manifest.o)
+        file(WRITE ${MANIFEST_RC} "1 24 \"${MANIFEST_FILE}\"\n")
+        if(NOT CMAKE_RC_COMPILER)
+            set(CMAKE_RC_COMPILER windres)
+        endif()
+        add_custom_command(
+            OUTPUT ${MANIFEST_OBJ}
+            COMMAND ${CMAKE_RC_COMPILER} -i ${MANIFEST_RC} -o ${MANIFEST_OBJ}
+            DEPENDS ${MANIFEST_RC} ${MANIFEST_FILE}
+        )
+        target_sources(GamepadControllerQt PRIVATE ${MANIFEST_OBJ})
+    else()
+        # MSVC：直接作为 manifest 资源编译进 exe
+        target_sources(GamepadControllerQt PRIVATE ${MANIFEST_FILE})
+        set_source_files_properties(${MANIFEST_FILE} PROPERTIES VS_TOOL_OVERRIDE "MANIFEST")
+    endif()
 endif()
 
 # 源码与可执行字符集统一为 UTF-8，避免中文注释/字符串在编译输出中乱码

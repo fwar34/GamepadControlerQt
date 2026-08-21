@@ -4,7 +4,7 @@
 // ------------------------------------------------------------
 // 数据流总览（Windows 本机版，无跨机器桥接）：
 //
-//   XInputGamepadSource (手柄读取, QTimer 轮询 125Hz)
+//   XInputGamepadSource (手柄读取, 独立线程轮询 125Hz)
 //        |  buttonChanged / stickChanged / connectedChanged
 //        v
 //   SteamInput (映射引擎：层管理、按键/摇杆分发)
@@ -46,21 +46,21 @@ int main(int argc, char* argv[]) {
     mapper.start();
 
     // ---- 3. 手柄读取 ----
-    // Windows XInput 实现（替代 QtGamepad），QTimer 轮询
+    // Windows XInput 实现（替代 QtGamepad），独立线程轮询
     XInputGamepadSource gamepad;
     gamepad.start();
 
     // ---- 4. 手柄输入 -> 映射引擎 ----
-    // 数字按键与摇杆事件直接转发给引擎
+    // 信号从轮询线程发出，用 DirectConnection 确保即时传递（低延迟）
     QObject::connect(&gamepad, &XInputGamepadSource::buttonChanged,
-                     &input, &SteamInput::handleButtonEvent);
+                     &input, &SteamInput::handleButtonEvent, Qt::DirectConnection);
     QObject::connect(&gamepad, &XInputGamepadSource::stickChanged,
-                     &input, &SteamInput::handleStickInput);
+                     &input, &SteamInput::handleStickInput, Qt::DirectConnection);
     // 手柄断开时释放全部注入状态，避免 MouseToggle 保持的鼠标键卡死
     QObject::connect(&gamepad, &XInputGamepadSource::connectedChanged,
                      &mapper, [&mapper](bool connected) {
                          if (!connected) mapper.releaseAllInputs();
-                     });
+                     }, Qt::DirectConnection);
 
     // ---- 5. 主窗口 ----
     MainWindow window(&input, &mapper, &gamepad);

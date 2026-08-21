@@ -228,6 +228,8 @@ QByteArray toJson(const ControllerProfile& profile, int indent) {
     gs.insert(QStringLiteral("cursorSpeed"), static_cast<double>(profile.globalSettings.cursorSpeed));
     gs.insert(QStringLiteral("lookSmoothing"), static_cast<double>(profile.globalSettings.lookSmoothing));
     gs.insert(QStringLiteral("lookAcceleration"), static_cast<double>(profile.globalSettings.lookAcceleration));
+    gs.insert(QStringLiteral("invertLookX"), profile.globalSettings.invertLookX);
+    gs.insert(QStringLiteral("invertLookY"), profile.globalSettings.invertLookY);
     root.insert(QStringLiteral("globalSettings"), gs);
 
     root.insert(QStringLiteral("commonLayer"), layerToJson(profile.commonLayer));
@@ -267,6 +269,8 @@ ControllerProfile fromJson(const QByteArray& json) {
         s.cursorSpeed = static_cast<float>(gs.value(QStringLiteral("cursorSpeed")).toDouble(1.0));
         s.lookSmoothing = static_cast<float>(gs.value(QStringLiteral("lookSmoothing")).toDouble(0.5));
         s.lookAcceleration = static_cast<float>(gs.value(QStringLiteral("lookAcceleration")).toDouble(1.5));
+        s.invertLookX = gs.value(QStringLiteral("invertLookX")).toBool(false);
+        s.invertLookY = gs.value(QStringLiteral("invertLookY")).toBool(false);
         profile.globalSettings = s;
     }
 

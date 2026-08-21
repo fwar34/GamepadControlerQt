@@ -52,7 +52,8 @@ private:
     QStackedWidget* paramStack_ = nullptr; // 动作参数面板
     QComboBox* actionTypeCombo_ = nullptr; // 动作类型（含"无"）
     QComboBox* keyCombo_ = nullptr;        // 键盘键（KeyboardKey）
-    QComboBox* mouseCombo_ = nullptr;      // 鼠标键（MouseClick/MouseToggle）
+    QComboBox* mouseCombo_ = nullptr;      // 鼠标键（MouseClick）
+    QComboBox* mouseToggleCombo_ = nullptr; // 鼠标键（MouseToggle）
     QComboBox* layerCombo_ = nullptr;      // 目标层（SwitchLayer）
     QComboBox* subCombos_[3] = {};         // 子命令组合键（最多 3 个）
 

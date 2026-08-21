@@ -31,14 +31,13 @@
 #include <QApplication>
 #include <QGuiApplication>
 #include <QScreen>
-#include <QCursor>
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QCheckBox>
 #include <QSlider>
 #include <QStatusBar>
 #include <QVBoxLayout>
@@ -102,7 +101,7 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     auto* mid = new QHBoxLayout;
 
     // 层切换区：每个操作层一个可点击按钮（点击激活/取消，右键编辑）
-    auto* layerGroup = new QGroupBox(tr("操作层（点击切换，右键编辑）"), this);
+    auto* layerGroup = new QGroupBox(tr("操作层（点击编辑）"), this);
     auto* layerLayout = new QVBoxLayout(layerGroup);
 
     const auto& layers = input_->profile.layers;
@@ -114,23 +113,10 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
         const OperationLayer* layer = input_->profile.findLayer(layerId);
         auto* btn = new QPushButton(layer ? layer->name : layerDisplayName(layerId), layerGroup);
         btn->setObjectName(layerId);   // 以 id 为对象名，重命名后仍可定位
-        btn->setCheckable(true);
-        btn->setContextMenuPolicy(Qt::CustomContextMenu);
-        btn->setToolTip(tr("点击切换层，右键编辑"));
-        // 点击：勾选 -> 激活层；取消勾选 -> 停用层
-        connect(btn, &QPushButton::clicked, this, [this, layerId](bool checked) {
-            if (checked)
-                input_->activateLayer(layerId);
-            else
-                input_->deactivateLayer(layerId);
-        });
-        // 右键：弹出编辑菜单
-        connect(btn, &QPushButton::customContextMenuRequested, this, [this, layerId](const QPoint&) {
-            QMenu menu(this);
-            QAction* edit = menu.addAction(tr("编辑该层…"));
-            QAction* act = menu.exec(QCursor::pos());
-            if (act == edit)
-                editLayer(layerId);
+        btn->setToolTip(tr("点击编辑该层"));
+        // 左键：打开编辑对话框
+        connect(btn, &QPushButton::clicked, this, [this, layerId]() {
+            editLayer(layerId);
         });
         grid->addWidget(btn, i / cols, i % cols);
         layerButtons_.append(btn);
@@ -149,15 +135,18 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     auto* settingsLayout = new QVBoxLayout(settingsGroup);
 
     // 本地工具函数：创建一行"标题 + 滑块 + 数值标签"并保存指针
-    auto addSetting = [settingsLayout](const QString& title, int min, int max, int value,
+    auto addSetting = [settingsLayout](const QString& title, const QString& tip,
+                                       int min, int max, int value,
                                        QSlider** outSlider, QLabel** outValue) {
         auto* row = new QHBoxLayout;
         auto* label = new QLabel(title);
         label->setMinimumWidth(80);
+        label->setToolTip(tip);
         row->addWidget(label);
         auto* slider = new QSlider(Qt::Horizontal);
         slider->setRange(min, max);
         slider->setValue(value);
+        slider->setToolTip(tip);
         row->addWidget(slider, 1);
         auto* valueLabel = new QLabel(QString::number(value));
         valueLabel->setMinimumWidth(36);
@@ -174,14 +163,32 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     QLabel* sensitivityValue = nullptr;
     QLabel* smoothingValue = nullptr;
     QLabel* accelerationValue = nullptr;
-    addSetting(tr("摇杆死区"), 0, 50, qRound(gs.deadzone * 100),
+    addSetting(tr("摇杆死区"),
+               tr("摇杆推力低于此阈值时视为零输入，避免手柄漂移导致误触发。\n值越大需要推得越深才会有响应。"),
+               0, 50, qRound(gs.deadzone * 100),
                &deadzoneSlider_, &deadzoneValue);
-    addSetting(tr("视角灵敏度"), 10, 200, qRound(gs.lookSensitivity * 100),
+    addSetting(tr("视角灵敏度"),
+               tr("右摇杆控制鼠标移动的速度倍率。\n值越大相同推力下鼠标移动越快。"),
+               10, 200, qRound(gs.lookSensitivity * 100),
                &sensitivitySlider_, &sensitivityValue);
-    addSetting(tr("视角平滑"), 0, 100, qRound(gs.lookSmoothing * 100),
+    addSetting(tr("视角平滑"),
+               tr("对右摇杆输入做时间轴上的平滑处理，减少抖动。\n值越大响应越平滑但延迟越高，设为 0 为无平滑。"),
+               0, 100, qRound(gs.lookSmoothing * 100),
                &smoothingSlider_, &smoothingValue);
-    addSetting(tr("视角加速"), 100, 300, qRound(gs.lookAcceleration * 100),
+    addSetting(tr("视角加速"),
+               tr("右摇杆推力与鼠标速度的非线性映射指数。\n100 为线性（无加速），值越大轻推越慢、重推越快。"),
+               100, 300, qRound(gs.lookAcceleration * 100),
                &accelerationSlider_, &accelerationValue);
+
+    invertLookXCheck_ = new QCheckBox(tr("右摇杆 X 轴反转"), settingsGroup);
+    invertLookXCheck_->setChecked(gs.invertLookX);
+    invertLookXCheck_->setToolTip(tr("反转右摇杆左右方向的鼠标移动"));
+    settingsLayout->addWidget(invertLookXCheck_);
+
+    invertLookYCheck_ = new QCheckBox(tr("右摇杆 Y 轴反转"), settingsGroup);
+    invertLookYCheck_->setChecked(gs.invertLookY);
+    invertLookYCheck_->setToolTip(tr("反转右摇杆上下方向的鼠标移动"));
+    settingsLayout->addWidget(invertLookYCheck_);
 
     // 数值标签随滑块更新，并实时写回引擎（lambda 捕获引用）
     auto updateValues = [deadzoneValue, sensitivityValue, smoothingValue, accelerationValue,
@@ -196,6 +203,8 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     connect(sensitivitySlider_, &QSlider::valueChanged, this, updateValues);
     connect(smoothingSlider_, &QSlider::valueChanged, this, updateValues);
     connect(accelerationSlider_, &QSlider::valueChanged, this, updateValues);
+    connect(invertLookXCheck_, &QCheckBox::toggled, this, [this]() { onApplySettings(); });
+    connect(invertLookYCheck_, &QCheckBox::toggled, this, [this]() { onApplySettings(); });
 
     settingsLayout->addStretch(1);
     mid->addWidget(settingsGroup, 0);
@@ -261,7 +270,6 @@ void MainWindow::refreshLayerButtons() {
     for (QPushButton* btn : layerButtons_) {
         const QString layerId = btn->objectName();
         const bool active = input_->isLayerActive(layerId);
-        btn->setChecked(active);
         btn->setStyleSheet(active ? QStringLiteral("background: #2196f3; color: white;")
                                   : QString());
         // 更新按钮文本为当前层名称
@@ -322,6 +330,8 @@ void MainWindow::onResetConfig() {
     sensitivitySlider_->setValue(qRound(def.globalSettings.lookSensitivity * 100));
     smoothingSlider_->setValue(qRound(def.globalSettings.lookSmoothing * 100));
     accelerationSlider_->setValue(qRound(def.globalSettings.lookAcceleration * 100));
+    invertLookXCheck_->setChecked(def.globalSettings.invertLookX);
+    invertLookYCheck_->setChecked(def.globalSettings.invertLookY);
     statusBar()->showMessage(tr("已重置为默认配置"));
 }
 
@@ -358,6 +368,8 @@ void MainWindow::onApplySettings() {
     s.cursorSpeed = 1.0f;
     s.lookSmoothing = static_cast<float>(smoothingSlider_->value()) / 100.0f;
     s.lookAcceleration = static_cast<float>(accelerationSlider_->value()) / 100.0f;
+    s.invertLookX = invertLookXCheck_->isChecked();
+    s.invertLookY = invertLookYCheck_->isChecked();
     input_->setGlobalSettings(s);
 }
 

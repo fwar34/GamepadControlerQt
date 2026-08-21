@@ -4,7 +4,8 @@
 
 #include <QHash>
 #include <QObject>
-#include <QTimer>
+#include <atomic>
+#include <thread>
 
 // =====================================================================
 // XInputGamepadSource —— XInput 手柄读取源
@@ -13,7 +14,8 @@
 // ControllerDevice + ControllerInputMapper。
 //
 // 工作原理：
-//   - 内部 QTimer 以固定周期（默认 8ms = 125Hz）轮询 XInputGetState
+//   - 内部独立线程以固定周期（默认 8ms = 125Hz）轮询 XInputGetState
+//   - 使用独立线程而非 QTimer，确保应用在后台/非焦点时仍能正常轮询
 //   - 将 XInput 按钮位掩码 / 扳机 / 摇杆转换为统一的
 //     ControllerButton / ControllerStick 事件发出
 //   - 扳机（LT/RT）阈值 >=128 视为按下；摇杆 short 归一化到 [-1,1]
@@ -28,6 +30,7 @@ class XInputGamepadSource : public QObject {
     Q_OBJECT
 public:
     explicit XInputGamepadSource(QObject* parent = nullptr);
+    ~XInputGamepadSource() override;
 
     // 启动轮询（重置连接失败计数）
     void start();
@@ -52,12 +55,16 @@ signals:
     void stickChanged(ControllerStick stick, float x, float y);
 
 private:
-    // 单次轮询（QTimer 槽）
+    // 轮询线程主循环
+    void pollLoop();
+    // 单次轮询
     void poll();
 
     int playerIndex_ = 0;
     bool connected_ = false;
-    QTimer timer_;
+    std::atomic<bool> running_{false};
+    std::thread pollThread_;
+    int pollIntervalMs_ = 8;
     // 上一次按钮状态，用于检测变化并发出事件
     QHash<ControllerButton, bool> prevButtonStates_;
     // 连接失败计数，避免短暂错误导致状态闪烁

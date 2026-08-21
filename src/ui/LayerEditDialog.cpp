@@ -225,7 +225,8 @@ void LayerEditDialog::buildUi() {
     paramStack_->addWidget(keyCombo_);                             // 1 键盘按键
     mouseCombo_ = makeMouseCombo();
     paramStack_->addWidget(mouseCombo_);                           // 2 鼠标点击
-    paramStack_->addWidget(mouseCombo_);                           // 3 鼠标长按
+    mouseToggleCombo_ = makeMouseCombo();
+    paramStack_->addWidget(mouseToggleCombo_);                     // 3 鼠标长按
     layerCombo_ = makeLayerCombo(profile_);
     paramStack_->addWidget(layerCombo_);                           // 4 切换层
     paramStack_->addWidget(new QLabel(tr("由左摇杆输入驱动"), this)); // 5 鼠标移动
@@ -287,7 +288,7 @@ void LayerEditDialog::loadForm() {
                 break;
             case MappedAction::Type::MouseToggle:
                 actionTypeCombo_->setCurrentIndex(3);
-                setComboIndex(mouseCombo_, static_cast<int>(m->action.mouseButton));
+                setComboIndex(mouseToggleCombo_, static_cast<int>(m->action.mouseButton));
                 break;
             case MappedAction::Type::SwitchLayer:
                 actionTypeCombo_->setCurrentIndex(4);
@@ -339,7 +340,7 @@ void LayerEditDialog::saveFormFor(ControllerButton button) {
             break;
         case 3:  // 鼠标长按
             m.action = MappedAction::mouseToggle(
-                static_cast<MouseButton>(mouseCombo_->currentData().toInt()));
+                static_cast<MouseButton>(mouseToggleCombo_->currentData().toInt()));
             break;
         case 4: {  // 切换层：目标层为空则视为清除
             const QString layerName = layerCombo_->currentData().toString();

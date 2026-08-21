@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <assemblyIdentity version="1.0.0.0" processorArchitecture="*" name="GamepadControllerQt" type="win32"/>
+  <description>Gamepad to keyboard/mouse mapper (Windows local version)</description>
+  <!--
+    requireAdministrator：以管理员权限运行本程序。
+    原因：目标游戏（如 WoW）常以管理员身份运行（高完整性级别）。
+    普通权限进程通过 SendInput 向高完整性前台窗口注入输入时，
+    会被 Windows UIPI（用户界面特权隔离）静默屏蔽，
+    表现为"手柄按键在悬浮窗可见，但前台游戏无反应，仅本程序在前台时才生效"。
+    声明 requireAdministrator 让本程序以管理员权限运行，
+    完整性级别不低于目标游戏，注入即可正常送达。
+    若不需要提升权限，把 level 改为 asInvoker 即可。
+  -->
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level="requireAdministrator" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+</assembly>

@@ -161,5 +161,13 @@ void SteamInput::handleButtonEvent(ControllerButton button, bool isPressed) {
 void SteamInput::handleStickInput(ControllerStick stick, float x, float y) {
     const float dz = profile.globalSettings.deadzone;
     const Vector2 d = Vector2{x, y}.withDeadzone(dz);
-    emit stickMapped(stick, d.x, d.y);
+    float outX = d.x;
+    float outY = d.y;
+    if (stick == ControllerStick::RIGHT_STICK) {
+        if (profile.globalSettings.invertLookX)
+            outX = -outX;
+        if (profile.globalSettings.invertLookY)
+            outY = -outY;
+    }
+    emit stickMapped(stick, outX, outY);
 }

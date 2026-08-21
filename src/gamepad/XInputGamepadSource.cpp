@@ -8,8 +8,8 @@
 //         - stickChanged(摇杆, x, y)     -> 摇杆轴事件
 //         - connectedChanged(是否连接)   -> 连接状态变化
 //
-// 线程模型：本类不创建线程，而是借助 QTimer（默认 8ms ≈ 125Hz）
-//           在 Qt 主线程事件循环中定时调用 poll() 完成轮询。
+// 线程模型：内部创建独立轮询线程（默认 8ms ≈ 125Hz），
+//           使用 Sleep 而非 QTimer，确保应用在后台时仍能正常轮询。
 //
 // 关键设计：
 //   1. 连接防抖：XInput 偶尔会短暂返回错误（如 USB 通信抖动），
@@ -84,13 +84,15 @@ float axisToFloat(SHORT value) {
 }  // namespace
 
 // ============================================================
-// 构造：创建 8ms 定时器并连接轮询槽
+// 构造
 // ============================================================
-// 默认轮询频率 8ms ≈ 125Hz，与键盘/鼠标注入线程频率一致，
-// 保证摇杆数据延迟可控。
-XInputGamepadSource::XInputGamepadSource(QObject* parent) : QObject(parent) {
-    timer_.setInterval(8);
-    connect(&timer_, &QTimer::timeout, this, &XInputGamepadSource::poll);
+XInputGamepadSource::XInputGamepadSource(QObject* parent) : QObject(parent) {}
+
+// ============================================================
+// 析构：确保轮询线程停止
+// ============================================================
+XInputGamepadSource::~XInputGamepadSource() {
+    stop();
 }
 
 // ============================================================
@@ -98,33 +100,34 @@ XInputGamepadSource::XInputGamepadSource(QObject* parent) : QObject(parent) {
 // ============================================================
 // 至少 1ms，避免除零或异常高频轮询导致 CPU 占用过高。
 void XInputGamepadSource::setPollInterval(int ms) {
-    timer_.setInterval(qMax(1, ms));
+    pollIntervalMs_ = qMax(1, ms);
 }
 
 // ============================================================
-// start：启动轮询
+// start：启动轮询线程
 // ============================================================
 // 幂等操作：已在运行时不做任何事。
 // 启动前先把连接失败计数清零，保证上一次断开留下的计数
 // 不会让本次连接被误判为立即断开。
 void XInputGamepadSource::start() {
-    if (!timer_.isActive()) {
-        connectionFailCount_ = 0;   // 重置防抖计数
-        timer_.start();
-        poll();  // 立即轮询一次，快速反馈连接状态（无需等首个定时器周期）
-    }
+    if (running_.load()) return;
+    connectionFailCount_ = 0;
+    running_.store(true);
+    pollThread_ = std::thread(&XInputGamepadSource::pollLoop, this);
+    poll();  // 立即轮询一次，快速反馈连接状态
 }
 
 // ============================================================
-// stop：停止轮询并清理
+// stop：停止轮询线程并清理
 // ============================================================
 // 停止后：
 //   1. 把所有仍处于按下状态的按钮补发一次松开事件，
 //      避免残留的键鼠注入导致按键卡死；
 //   2. 若仍显示已连接，则置为未连接并广播 connectedChanged(false)。
 void XInputGamepadSource::stop() {
-    if (timer_.isActive())
-        timer_.stop();
+    running_.store(false);
+    if (pollThread_.joinable())
+        pollThread_.join();
 
     // 释放所有已按下的按钮，避免键鼠卡死
     for (auto it = prevButtonStates_.begin(); it != prevButtonStates_.end(); ++it) {
@@ -136,6 +139,18 @@ void XInputGamepadSource::stop() {
     if (connected_) {
         connected_ = false;
         emit connectedChanged(false);
+    }
+}
+
+// ============================================================
+// pollLoop：轮询线程主循环
+// ============================================================
+// 独立线程中以固定间隔调用 poll()，不受 Qt 事件循环影响，
+// 确保应用在后台/非焦点时仍能正常读取手柄输入。
+void XInputGamepadSource::pollLoop() {
+    while (running_.load()) {
+        poll();
+        Sleep(static_cast<DWORD>(pollIntervalMs_));
     }
 }
 

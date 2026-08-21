@@ -9,6 +9,7 @@ class KeyboardMouseMapper;
 class XInputGamepadSource;
 class QLabel;
 class QPushButton;
+class QCheckBox;
 class QSlider;
 
 // =====================================================================
@@ -61,4 +62,6 @@ private:
     QSlider* sensitivitySlider_ = nullptr;
     QSlider* smoothingSlider_ = nullptr;
     QSlider* accelerationSlider_ = nullptr;
+    QCheckBox* invertLookXCheck_ = nullptr;
+    QCheckBox* invertLookYCheck_ = nullptr;
 };

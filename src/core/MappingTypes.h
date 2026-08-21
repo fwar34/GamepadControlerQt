@@ -168,6 +168,8 @@ struct GlobalSettings {
     float cursorSpeed = 1.0f;        // 光标速度（预留）
     float lookSmoothing = 0.5f;      // 视角平滑
     float lookAcceleration = 1.5f;   // 视角加速度曲线
+    bool invertLookX = false;        // 右摇杆 X 轴反转
+    bool invertLookY = false;        // 右摇杆 Y 轴反转
 };
 
 // ---------------------------------------------------------------------
