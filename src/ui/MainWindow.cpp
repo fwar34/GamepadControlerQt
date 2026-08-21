@@ -38,8 +38,11 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QCheckBox>
+#include <QCloseEvent>
+#include <QMenu>
 #include <QSlider>
 #include <QStatusBar>
+#include <QSystemTrayIcon>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -94,7 +97,47 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     // ---- 前台窗口监控：切换窗口时自动释放所有按键 ----
     foregroundTimer_ = new QTimer(this);
     connect(foregroundTimer_, &QTimer::timeout, this, &MainWindow::onCheckForeground);
-    foregroundTimer_->start(200);  // 每 200ms 检查一次
+    foregroundTimer_->start(200);
+
+    // ---- 系统托盘图标（最小化时显示） ----
+    trayIcon_ = new QSystemTrayIcon(windowIcon(), this);
+    trayIcon_->setToolTip(windowTitle());
+    // 右键菜单
+    trayMenu_ = new QMenu(this);
+    QAction* showAction = trayMenu_->addAction(tr("显示主界面"));
+    connect(showAction, &QAction::triggered, this, [this]() {
+        show();
+        raise();
+        activateWindow();
+    });
+    trayMappingAction_ = trayMenu_->addAction(tr("激活映射"));
+    trayMappingAction_->setCheckable(true);
+    trayMappingAction_->setChecked(mapper_->isRunning());
+    connect(trayMappingAction_, &QAction::triggered, this, [this](bool checked) {
+        if (checked && !mapper_->isRunning()) {
+            mapper_->start();
+            gamepad_->start();
+            startStopButton_->setText(tr("停止映射"));
+            statusBar()->showMessage(tr("已启动映射"));
+        } else if (!checked && mapper_->isRunning()) {
+            gamepad_->stop();
+            mapper_->stop();
+            startStopButton_->setText(tr("启动映射"));
+            statusBar()->showMessage(tr("已停止：释放所有按键"));
+        }
+    });
+    trayMenu_->addSeparator();
+    QAction* quitAction = trayMenu_->addAction(tr("退出"));
+    connect(quitAction, &QAction::triggered, this, &QWidget::close);
+    trayIcon_->setContextMenu(trayMenu_);
+    // 双击托盘图标 → 显示主窗口
+    connect(trayIcon_, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
+        if (reason == QSystemTrayIcon::DoubleClick) {
+            show();
+            raise();
+            activateWindow();
+        }
+    });
 
     auto* central = new QWidget(this);
     auto* root = new QVBoxLayout(central);
@@ -211,6 +254,16 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     releaseOnFgCheck_->setToolTip(tr("离开前台窗口时自动释放所有已注入的按键，防止按键卡死"));
     settingsLayout->addWidget(releaseOnFgCheck_);
 
+    confirmOnCloseCheck_ = new QCheckBox(tr("关闭时确认退出"), settingsGroup);
+    confirmOnCloseCheck_->setChecked(gs.confirmOnClose);
+    confirmOnCloseCheck_->setToolTip(tr("关闭窗口时弹出对话框，可选择直接退出或最小化到系统托盘"));
+    settingsLayout->addWidget(confirmOnCloseCheck_);
+
+    mappingEnabledCheck_ = new QCheckBox(tr("映射总开关"), settingsGroup);
+    mappingEnabledCheck_->setChecked(gs.mappingEnabled);
+    mappingEnabledCheck_->setToolTip(tr("控制手柄→键鼠映射是否启用，关闭后手柄输入不会注入到前台窗口"));
+    settingsLayout->addWidget(mappingEnabledCheck_);
+
     // 数值标签随滑块更新，并实时写回引擎（lambda 捕获引用）
     auto updateValues = [deadzoneValue, sensitivityValue, smoothingValue, accelerationValue,
                          this]() {
@@ -227,6 +280,22 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     connect(invertLookXCheck_, &QCheckBox::toggled, this, [this]() { onApplySettings(); });
     connect(invertLookYCheck_, &QCheckBox::toggled, this, [this]() { onApplySettings(); });
     connect(releaseOnFgCheck_, &QCheckBox::toggled, this, [this]() { onApplySettings(); });
+    connect(confirmOnCloseCheck_, &QCheckBox::toggled, this, [this]() { onApplySettings(); });
+    connect(mappingEnabledCheck_, &QCheckBox::toggled, this, [this](bool checked) {
+        onApplySettings();
+        // 同步启停映射
+        if (checked && !mapper_->isRunning()) {
+            mapper_->start();
+            gamepad_->start();
+            startStopButton_->setText(tr("停止映射"));
+        } else if (!checked && mapper_->isRunning()) {
+            gamepad_->stop();
+            mapper_->stop();
+            startStopButton_->setText(tr("启动映射"));
+        }
+        // 同步托盘菜单
+        trayMappingAction_->setChecked(checked);
+    });
 
     settingsLayout->addStretch(1);
     mid->addWidget(settingsGroup, 0);
@@ -355,6 +424,8 @@ void MainWindow::onResetConfig() {
     invertLookXCheck_->setChecked(def.globalSettings.invertLookX);
     invertLookYCheck_->setChecked(def.globalSettings.invertLookY);
     releaseOnFgCheck_->setChecked(def.globalSettings.releaseOnForegroundChange);
+    confirmOnCloseCheck_->setChecked(def.globalSettings.confirmOnClose);
+    mappingEnabledCheck_->setChecked(def.globalSettings.mappingEnabled);
     // 重置悬浮窗到默认位置
     if (overlay_) {
         const QRect screenRect = QGuiApplication::primaryScreen()->availableGeometry();
@@ -400,6 +471,8 @@ void MainWindow::onApplySettings() {
     s.invertLookX = invertLookXCheck_->isChecked();
     s.invertLookY = invertLookYCheck_->isChecked();
     s.releaseOnForegroundChange = releaseOnFgCheck_->isChecked();
+    s.confirmOnClose = confirmOnCloseCheck_->isChecked();
+    s.mappingEnabled = mappingEnabledCheck_->isChecked();
     input_->setGlobalSettings(s);
 }
 
@@ -419,6 +492,47 @@ void MainWindow::onCheckForeground() {
 #else
     Q_UNUSED(this);
 #endif
+}
+
+// ============================================================
+// closeEvent：关闭时弹出确认对话框（退出/最小化到托盘）
+// ============================================================
+void MainWindow::closeEvent(QCloseEvent* event) {
+    if (!input_->profile.globalSettings.confirmOnClose) {
+        event->accept();
+        return;
+    }
+    QMessageBox dialog(this);
+    dialog.setWindowTitle(tr("退出确认"));
+    dialog.setText(tr("确定要退出程序吗？"));
+    QPushButton* exitBtn = dialog.addButton(tr("退出"), QMessageBox::AcceptRole);
+    dialog.addButton(tr("最小化到托盘"), QMessageBox::RejectRole);
+    dialog.exec();
+    if (dialog.clickedButton() == exitBtn) {
+        event->accept();
+    } else {
+        hide();
+        event->ignore();
+    }
+}
+
+// ============================================================
+// hideEvent：窗口隐藏时显示托盘图标
+// ============================================================
+void MainWindow::hideEvent(QHideEvent* event) {
+    QMainWindow::hideEvent(event);
+    if (overlay_) overlay_->hide();
+    trayIcon_->show();
+    trayMappingAction_->setChecked(mapper_->isRunning());
+}
+
+// ============================================================
+// showEvent：窗口显示时隐藏托盘图标
+// ============================================================
+void MainWindow::showEvent(QShowEvent* event) {
+    QMainWindow::showEvent(event);
+    if (overlay_) overlay_->show();
+    trayIcon_->hide();
 }
 
 // ============================================================

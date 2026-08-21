@@ -12,6 +12,8 @@ class QPushButton;
 class QCheckBox;
 class QSlider;
 class QTimer;
+class QMenu;
+class QSystemTrayIcon;
 
 // =====================================================================
 // MainWindow —— 主窗口
@@ -43,6 +45,9 @@ private slots:
     void onEditCommonLayer();
     void onApplySettings();
     void onCheckForeground();
+    void closeEvent(QCloseEvent* event) override;
+    void hideEvent(QHideEvent* event) override;
+    void showEvent(QShowEvent* event) override;
 
 private:
     // 根据当前 profile 重建层按钮文本（含显示名）
@@ -67,7 +72,12 @@ private:
     QCheckBox* invertLookXCheck_ = nullptr;
     QCheckBox* invertLookYCheck_ = nullptr;
     QCheckBox* releaseOnFgCheck_ = nullptr;
+    QCheckBox* confirmOnCloseCheck_ = nullptr;
+    QCheckBox* mappingEnabledCheck_ = nullptr;
 
     QTimer* foregroundTimer_ = nullptr;
-    void* lastForegroundHwnd_ = nullptr;  // 上一次前台窗口句柄
+    void* lastForegroundHwnd_ = nullptr;
+    QSystemTrayIcon* trayIcon_ = nullptr;
+    QMenu* trayMenu_ = nullptr;
+    QAction* trayMappingAction_ = nullptr;  // 托盘菜单「激活映射」项
 };

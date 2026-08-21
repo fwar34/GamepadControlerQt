@@ -130,23 +130,12 @@ void OverlayWidget::refreshMappings() {
 // 右键点击：展开/收起映射列表
 void OverlayWidget::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
-        // 左键点击：将主窗口拉到前台
-        if (mainWindow_) {
-#ifdef Q_OS_WIN
-            HWND hwnd = reinterpret_cast<HWND>(mainWindow_->winId());
-            ShowWindow(hwnd, SW_RESTORE);
-            SetForegroundWindow(hwnd);
-#else
-            mainWindow_->raise();
-            mainWindow_->activateWindow();
-#endif
-        }
-        // 同时支持拖拽
         dragging_ = true;
+        dragMoved_ = false;
+        pressPos_ = event->globalPosition().toPoint();
         dragPos_ = event->globalPosition().toPoint() - frameGeometry().topLeft();
         event->accept();
     } else if (event->button() == Qt::RightButton) {
-        // 右键点击：展开/收起映射列表
         expanded_ = !expanded_;
         if (expanded_) {
             refreshMappings();
@@ -161,14 +150,30 @@ void OverlayWidget::mousePressEvent(QMouseEvent* event) {
 
 void OverlayWidget::mouseMoveEvent(QMouseEvent* event) {
     if (dragging_ && event->buttons() & Qt::LeftButton) {
-        move(event->globalPosition().toPoint() - dragPos_);
+        const QPoint delta = event->globalPosition().toPoint() - pressPos_;
+        if (!dragMoved_ && (delta.x() * delta.x() + delta.y() * delta.y()) > 25)
+            dragMoved_ = true;
+        if (dragMoved_)
+            move(event->globalPosition().toPoint() - dragPos_);
         event->accept();
     }
 }
 
 void OverlayWidget::mouseReleaseEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
+        // 没有实际移动过 → 视为点击，将主窗口拉到前台
+        if (!dragMoved_ && mainWindow_) {
+#ifdef Q_OS_WIN
+            HWND hwnd = reinterpret_cast<HWND>(mainWindow_->winId());
+            ShowWindow(hwnd, SW_RESTORE);
+            SetForegroundWindow(hwnd);
+#else
+            mainWindow_->raise();
+            mainWindow_->activateWindow();
+#endif
+        }
         dragging_ = false;
+        dragMoved_ = false;
         event->accept();
     }
 }

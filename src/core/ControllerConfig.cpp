@@ -233,6 +233,8 @@ QByteArray toJson(const ControllerProfile& profile, int indent) {
     gs.insert(QStringLiteral("overlayX"), profile.globalSettings.overlayX);
     gs.insert(QStringLiteral("overlayY"), profile.globalSettings.overlayY);
     gs.insert(QStringLiteral("releaseOnForegroundChange"), profile.globalSettings.releaseOnForegroundChange);
+    gs.insert(QStringLiteral("confirmOnClose"), profile.globalSettings.confirmOnClose);
+    gs.insert(QStringLiteral("mappingEnabled"), profile.globalSettings.mappingEnabled);
     root.insert(QStringLiteral("globalSettings"), gs);
 
     root.insert(QStringLiteral("commonLayer"), layerToJson(profile.commonLayer));
@@ -277,6 +279,8 @@ ControllerProfile fromJson(const QByteArray& json) {
         s.overlayX = gs.value(QStringLiteral("overlayX")).toInt(-1);
         s.overlayY = gs.value(QStringLiteral("overlayY")).toInt(-1);
         s.releaseOnForegroundChange = gs.value(QStringLiteral("releaseOnForegroundChange")).toBool(true);
+        s.confirmOnClose = gs.value(QStringLiteral("confirmOnClose")).toBool(true);
+        s.mappingEnabled = gs.value(QStringLiteral("mappingEnabled")).toBool(true);
         profile.globalSettings = s;
     }
 

@@ -58,7 +58,9 @@ private:
     QLabel* mappingsLabel_ = nullptr;    // 展开时显示映射列表
     QVBoxLayout* layout_ = nullptr;
     bool dragging_ = false;
+    bool dragMoved_ = false;             // 拖拽过程中是否实际移动过
     QPoint dragPos_;
+    QPoint pressPos_;                    // 按下时的全局坐标（用于判断是否真正点击）
     bool expanded_ = false;              // 是否展开
     QString currentLayerName_;           // 当前层名（用于刷新映射列表）
 };
