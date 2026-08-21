@@ -1,57 +1,64 @@
 // ============================================================
 // OverlayWidget.cpp
-// 悬浮信息窗（当前层 + 按下的手柄按键）
+// 悬浮信息窗（当前层 + 按下的手柄按键 + 展开映射列表）
 // ------------------------------------------------------------
 // 无边框、置顶、半透明的悬浮小窗，帮助玩家在手柄切换层时
 // 随时看到当前层与当前按住的按键，无需切回主窗口。
 //
-// 关键设计：
-//   - 窗口标志 Qt::Tool + Qt::WindowStaysOnTopHint：作为工具窗
-//     始终置顶显示；不挂在主窗口下，主窗口最小化/关闭也不影响它。
-//   - 通过鼠标左键拖拽可自由移动位置（默认停在屏幕右上角）。
-//   - setHeldButtons 收到的按键集合已经过 MainWindow 过滤
-//     （排除了"层切换"触发按键），这里只负责纯展示。
+// 交互：
+//   - 左键点击：将主窗口拉到前台
+//   - 左键拖拽：移动悬浮窗位置
+//   - 右键点击：展开/收起当前层已映射按键列表
 // ============================================================
 
 #include "OverlayWidget.h"
 
 #include "../core/InputTypes.h"
+#include "../core/SteamInput.h"
 
 #include <QFont>
-#include <QPalette>
 #include <QGuiApplication>
 #include <QScreen>
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 // ============================================================
 // 构造：搭建悬浮窗外观与初始位置
 // ============================================================
 OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
-    // 窗口样式：无边框、始终置顶、Qt::Tool（不出现在任务栏）
     setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
-    // 背景允许半透明（配合 QSS 的 rgba 背景色）
     setAttribute(Qt::WA_TranslucentBackground);
 
-    // 垂直布局：层名标签 + 按键标签
     layout_ = new QVBoxLayout(this);
     layout_->setContentsMargins(10, 8, 10, 8);
     layout_->setSpacing(4);
 
-    // 当前层名称（大号加粗，醒目）
+    // 当前层名称
     layerLabel_ = new QLabel(tr("当前层: Common"), this);
     layerLabel_->setFont(QFont("Microsoft YaHei", 12, QFont::Bold));
     layerLabel_->setStyleSheet("color: #ffffff;");
     layout_->addWidget(layerLabel_);
 
-    // 按下的手柄按键（小号灰色次要信息）
+    // 按下的手柄按键
     buttonsLabel_ = new QLabel(tr("按下按键: 无"), this);
     buttonsLabel_->setFont(QFont("Microsoft YaHei", 10));
     buttonsLabel_->setStyleSheet("color: #a0a0a0;");
     layout_->addWidget(buttonsLabel_);
 
-    // 整体背景：半透明黑色圆角卡片
+    // 展开时的映射列表（默认隐藏）
+    mappingsLabel_ = new QLabel(this);
+    mappingsLabel_->setFont(QFont("Microsoft YaHei", 9));
+    mappingsLabel_->setStyleSheet("color: #cccccc;");
+    mappingsLabel_->setWordWrap(true);
+    mappingsLabel_->hide();
+    layout_->addWidget(mappingsLabel_);
+
+    // 整体背景
     setStyleSheet(R"(
         QWidget {
             background-color: rgba(0, 0, 0, 180);
@@ -59,7 +66,7 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
         }
     )");
 
-    // 默认位置：屏幕右上角（留出 10px 边距）
+    // 默认位置：屏幕右上角
     const QRect screenRect = QGuiApplication::primaryScreen()->availableGeometry();
     adjustSize();
     move(screenRect.topRight() - QPoint(width() + 10, 10));
@@ -68,40 +75,86 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
 // ============================================================
 // setLayerName：更新显示的当前层
 // ============================================================
-// 用 layerDisplayName 附带中文别名（如 "Layer1 战斗"），
-// 文本变化后 adjustSize 让圆角卡片贴合内容。
 void OverlayWidget::setLayerName(const QString& name) {
+    currentLayerName_ = name;
     layerLabel_->setText(tr("当前层: %1").arg(layerDisplayName(name)));
+    if (expanded_)
+        refreshMappings();
     adjustSize();
 }
 
 // ============================================================
 // setHeldButtons：更新显示的按下按键
 // ============================================================
-// 传入的是"当前有效映射不为 SwitchLayer"的按住按键集合，
-// 这里只负责把按钮显示名拼接展示；空集合显示"无"。
 void OverlayWidget::setHeldButtons(const QSet<ControllerButton>& buttons) {
     if (buttons.isEmpty()) {
         buttonsLabel_->setText(tr("按下按键: 无"));
-        return;
+    } else {
+        QStringList buttonNames;
+        for (ControllerButton btn : buttons)
+            buttonNames.append(controllerButtonDisplayName(btn));
+        buttonsLabel_->setText(tr("按下按键: %1").arg(buttonNames.join(", ")));
     }
-
-    QStringList buttonNames;
-    for (ControllerButton btn : buttons) {
-        buttonNames.append(controllerButtonDisplayName(btn));
-    }
-    buttonsLabel_->setText(tr("按下按键: %1").arg(buttonNames.join(", ")));
     adjustSize();
 }
 
 // ============================================================
-// 拖拽实现：左键按住拖动悬浮窗
+// refreshMappings：展开时刷新当前层已映射的按键列表
 // ============================================================
-// 记录按下时鼠标全局坐标与窗口左上角的偏移，移动时按偏移跟手。
+void OverlayWidget::refreshMappings() {
+    if (!steamInput_ || !mappingsLabel_) return;
+
+    QStringList lines;
+    // 遍历所有手柄按钮，查询当前层栈下的有效映射
+    for (const ControllerButton btn : allControllerButtons()) {
+        const KeyMapping* m = steamInput_->getEffectiveMapping(btn);
+        if (!m) continue;
+        // 跳过层切换映射（仅显示实际操作映射）
+        if (m->action.type == MappedAction::Type::SwitchLayer) continue;
+        lines << QStringLiteral("%1 → %2").arg(
+            controllerButtonDisplayName(btn), m->describe());
+    }
+    // 摇杆映射
+    lines << tr("左摇杆 → WASD 移动");
+    lines << tr("右摇杆 → 视角控制");
+
+    mappingsLabel_->setText(lines.isEmpty() ? tr("（无映射）") : lines.join("\n"));
+    adjustSize();
+}
+
+// ============================================================
+// 鼠标事件
+// ============================================================
+// 左键点击：将主窗口拉到前台
+// 左键拖拽：移动悬浮窗
+// 右键点击：展开/收起映射列表
 void OverlayWidget::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
+        // 左键点击：将主窗口拉到前台
+        if (mainWindow_) {
+#ifdef Q_OS_WIN
+            HWND hwnd = reinterpret_cast<HWND>(mainWindow_->winId());
+            ShowWindow(hwnd, SW_RESTORE);
+            SetForegroundWindow(hwnd);
+#else
+            mainWindow_->raise();
+            mainWindow_->activateWindow();
+#endif
+        }
+        // 同时支持拖拽
         dragging_ = true;
         dragPos_ = event->globalPosition().toPoint() - frameGeometry().topLeft();
+        event->accept();
+    } else if (event->button() == Qt::RightButton) {
+        // 右键点击：展开/收起映射列表
+        expanded_ = !expanded_;
+        if (expanded_) {
+            refreshMappings();
+            mappingsLabel_->show();
+        } else {
+            mappingsLabel_->hide();
+        }
+        adjustSize();
         event->accept();
     }
 }

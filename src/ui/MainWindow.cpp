@@ -40,7 +40,12 @@
 #include <QCheckBox>
 #include <QSlider>
 #include <QStatusBar>
+#include <QTimer>
 #include <QVBoxLayout>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 
 // ============================================================
 // 构造：搭建主窗口 UI 与信号连接
@@ -54,6 +59,12 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     // 注意：parent 传 nullptr，使其成为独立顶层窗口，
     // 主窗口最小化时悬浮窗不会跟随隐藏。
     overlay_ = new OverlayWidget(nullptr);
+    overlay_->setSteamInput(input_);
+    overlay_->setMainWindow(this);
+    // 恢复上次保存的悬浮窗位置（-1 表示未保存过，使用默认位置）
+    const GlobalSettings& gs0 = input_->profile.globalSettings;
+    if (gs0.overlayX >= 0 && gs0.overlayY >= 0)
+        overlay_->move(gs0.overlayX, gs0.overlayY);
     overlay_->show();
     // 层变化 -> 悬浮窗更新层名
     connect(input_, &SteamInput::layerChanged, overlay_, &OverlayWidget::setLayerName);
@@ -79,6 +90,11 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
         }
     }
     overlay_->setHeldButtons(filtered);
+
+    // ---- 前台窗口监控：切换窗口时自动释放所有按键 ----
+    foregroundTimer_ = new QTimer(this);
+    connect(foregroundTimer_, &QTimer::timeout, this, &MainWindow::onCheckForeground);
+    foregroundTimer_->start(200);  // 每 200ms 检查一次
 
     auto* central = new QWidget(this);
     auto* root = new QVBoxLayout(central);
@@ -190,6 +206,11 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     invertLookYCheck_->setToolTip(tr("反转右摇杆上下方向的鼠标移动"));
     settingsLayout->addWidget(invertLookYCheck_);
 
+    releaseOnFgCheck_ = new QCheckBox(tr("切换窗口时释放按键"), settingsGroup);
+    releaseOnFgCheck_->setChecked(gs.releaseOnForegroundChange);
+    releaseOnFgCheck_->setToolTip(tr("离开前台窗口时自动释放所有已注入的按键，防止按键卡死"));
+    settingsLayout->addWidget(releaseOnFgCheck_);
+
     // 数值标签随滑块更新，并实时写回引擎（lambda 捕获引用）
     auto updateValues = [deadzoneValue, sensitivityValue, smoothingValue, accelerationValue,
                          this]() {
@@ -205,6 +226,7 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     connect(accelerationSlider_, &QSlider::valueChanged, this, updateValues);
     connect(invertLookXCheck_, &QCheckBox::toggled, this, [this]() { onApplySettings(); });
     connect(invertLookYCheck_, &QCheckBox::toggled, this, [this]() { onApplySettings(); });
+    connect(releaseOnFgCheck_, &QCheckBox::toggled, this, [this]() { onApplySettings(); });
 
     settingsLayout->addStretch(1);
     mid->addWidget(settingsGroup, 0);
@@ -332,6 +354,13 @@ void MainWindow::onResetConfig() {
     accelerationSlider_->setValue(qRound(def.globalSettings.lookAcceleration * 100));
     invertLookXCheck_->setChecked(def.globalSettings.invertLookX);
     invertLookYCheck_->setChecked(def.globalSettings.invertLookY);
+    releaseOnFgCheck_->setChecked(def.globalSettings.releaseOnForegroundChange);
+    // 重置悬浮窗到默认位置
+    if (overlay_) {
+        const QRect screenRect = QGuiApplication::primaryScreen()->availableGeometry();
+        overlay_->adjustSize();
+        overlay_->move(screenRect.topRight() - QPoint(overlay_->width() + 10, 10));
+    }
     statusBar()->showMessage(tr("已重置为默认配置"));
 }
 
@@ -370,15 +399,40 @@ void MainWindow::onApplySettings() {
     s.lookAcceleration = static_cast<float>(accelerationSlider_->value()) / 100.0f;
     s.invertLookX = invertLookXCheck_->isChecked();
     s.invertLookY = invertLookYCheck_->isChecked();
+    s.releaseOnForegroundChange = releaseOnFgCheck_->isChecked();
     input_->setGlobalSettings(s);
 }
 
 // ============================================================
-// 析构：关闭并释放悬浮窗
+// onCheckForeground：检测前台窗口变化，切换时释放所有按键
+// ============================================================
+// 每 200ms 检查一次当前前台窗口句柄。若与上次记录不同（用户切换了窗口），
+// 释放所有已注入的按键/鼠标键，避免按键卡死在目标游戏中。
+void MainWindow::onCheckForeground() {
+#ifdef Q_OS_WIN
+    HWND hwnd = GetForegroundWindow();
+    if (lastForegroundHwnd_ != nullptr && hwnd != lastForegroundHwnd_
+        && input_->profile.globalSettings.releaseOnForegroundChange) {
+        mapper_->releaseAllInputs();
+    }
+    lastForegroundHwnd_ = hwnd;
+#else
+    Q_UNUSED(this);
+#endif
+}
+
+// ============================================================
+// 析构：保存悬浮窗位置、自动保存配置、关闭并释放悬浮窗
 // ============================================================
 MainWindow::~MainWindow() {
     if (overlay_) {
+        // 保存悬浮窗位置到配置
+        const QPoint pos = overlay_->pos();
+        input_->profile.globalSettings.overlayX = pos.x();
+        input_->profile.globalSettings.overlayY = pos.y();
         overlay_->close();
         delete overlay_;
     }
+    // 退出时自动保存配置
+    ConfigManager::save(input_->profile);
 }

@@ -52,7 +52,8 @@ set(PROJECT_SOURCES
     src/ui/LayerEditDialog.cpp
 )
 
-add_executable(GamepadControllerQt ${PROJECT_SOURCES})
+# WIN32：编译为 GUI 子系统（Windows 下不弹黑色控制台窗口）
+add_executable(GamepadControllerQt WIN32 ${PROJECT_SOURCES})
 
 target_link_libraries(GamepadControllerQt PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 

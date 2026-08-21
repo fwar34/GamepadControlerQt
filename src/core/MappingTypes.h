@@ -170,6 +170,9 @@ struct GlobalSettings {
     float lookAcceleration = 1.5f;   // 视角加速度曲线
     bool invertLookX = false;        // 右摇杆 X 轴反转
     bool invertLookY = false;        // 右摇杆 Y 轴反转
+    int overlayX = -1;               // 悬浮窗 X 坐标（-1 表示未设置，使用默认位置）
+    int overlayY = -1;               // 悬浮窗 Y 坐标（-1 表示未设置，使用默认位置）
+    bool releaseOnForegroundChange = true;  // 切换前台窗口时释放所有按键
 };
 
 // ---------------------------------------------------------------------

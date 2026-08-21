@@ -230,6 +230,9 @@ QByteArray toJson(const ControllerProfile& profile, int indent) {
     gs.insert(QStringLiteral("lookAcceleration"), static_cast<double>(profile.globalSettings.lookAcceleration));
     gs.insert(QStringLiteral("invertLookX"), profile.globalSettings.invertLookX);
     gs.insert(QStringLiteral("invertLookY"), profile.globalSettings.invertLookY);
+    gs.insert(QStringLiteral("overlayX"), profile.globalSettings.overlayX);
+    gs.insert(QStringLiteral("overlayY"), profile.globalSettings.overlayY);
+    gs.insert(QStringLiteral("releaseOnForegroundChange"), profile.globalSettings.releaseOnForegroundChange);
     root.insert(QStringLiteral("globalSettings"), gs);
 
     root.insert(QStringLiteral("commonLayer"), layerToJson(profile.commonLayer));
@@ -271,6 +274,9 @@ ControllerProfile fromJson(const QByteArray& json) {
         s.lookAcceleration = static_cast<float>(gs.value(QStringLiteral("lookAcceleration")).toDouble(1.5));
         s.invertLookX = gs.value(QStringLiteral("invertLookX")).toBool(false);
         s.invertLookY = gs.value(QStringLiteral("invertLookY")).toBool(false);
+        s.overlayX = gs.value(QStringLiteral("overlayX")).toInt(-1);
+        s.overlayY = gs.value(QStringLiteral("overlayY")).toInt(-1);
+        s.releaseOnForegroundChange = gs.value(QStringLiteral("releaseOnForegroundChange")).toBool(true);
         profile.globalSettings = s;
     }
 

@@ -261,15 +261,16 @@ private:
     }
 
     // 注入单个键盘事件（down=true 按下，false 松开）
-    // 使用 KEYEVENTF_SCANCODE 模式：只写扫描码，不写虚拟键码。
-    // DirectInput / Raw Input 游戏（如 WoW）主要识别扫描码，
-    // 虚拟键码模式可能被忽略。
+    // 同时写入虚拟键码 + 扫描码 + KEYEVENTF_SCANCODE 标志，
+    // 兼容所有游戏的输入读取方式（DirectInput / Raw Input / GetAsyncKeyState）。
     void injectKey(int androidKeyCode, bool down) {
+        const int vk = androidKeyCodeToWindowsVK(androidKeyCode);
         const int sc = androidKeyCodeToWindowsScanCode(androidKeyCode);
-        if (sc == 0) return;
+        if (vk == 0 && sc == 0) return;
         INPUT input;
         memset(&input, 0, sizeof(input));
         input.type = INPUT_KEYBOARD;
+        input.ki.wVk = static_cast<WORD>(vk);
         input.ki.wScan = static_cast<WORD>(sc);
         input.ki.dwFlags = KEYEVENTF_SCANCODE
                          | (down ? 0 : KEYEVENTF_KEYUP)

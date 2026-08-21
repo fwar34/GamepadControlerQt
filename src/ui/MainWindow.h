@@ -11,6 +11,7 @@ class QLabel;
 class QPushButton;
 class QCheckBox;
 class QSlider;
+class QTimer;
 
 // =====================================================================
 // MainWindow —— 主窗口
@@ -41,6 +42,7 @@ private slots:
     void onResetConfig();
     void onEditCommonLayer();
     void onApplySettings();
+    void onCheckForeground();
 
 private:
     // 根据当前 profile 重建层按钮文本（含显示名）
@@ -64,4 +66,8 @@ private:
     QSlider* accelerationSlider_ = nullptr;
     QCheckBox* invertLookXCheck_ = nullptr;
     QCheckBox* invertLookYCheck_ = nullptr;
+    QCheckBox* releaseOnFgCheck_ = nullptr;
+
+    QTimer* foregroundTimer_ = nullptr;
+    void* lastForegroundHwnd_ = nullptr;  // 上一次前台窗口句柄
 };
