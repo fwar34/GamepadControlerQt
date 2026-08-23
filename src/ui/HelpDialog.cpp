@@ -23,7 +23,7 @@ HelpDialog::HelpDialog(QWidget* parent)
 
     auto* title = new QLabel(tr("使用说明"), this);
     title->setStyleSheet(QStringLiteral(
-        "font-size: 17px; font-weight: bold; color: #7fc9c4;"));
+        "font-size: 17px; font-weight: bold; font-family: \"DengXian\"; color: #7fc9c4;"));
     root->addWidget(title);
 
     auto* browser = new QTextBrowser(this);

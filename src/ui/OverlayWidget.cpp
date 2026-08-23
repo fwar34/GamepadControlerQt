@@ -50,7 +50,7 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
         "background-color: #2e7d32;"
         "border-radius: 6px;"));   // 初始：映射运行中（绿）
     layerLabel_ = new QLabel(tr("当前层: Common"), this);
-    layerLabel_->setFont(QFont("Microsoft YaHei", 11, QFont::Bold));
+    layerLabel_->setFont(QFont("DengXian", 11, QFont::Bold));   // 粗体用等线，避免雅黑合成粗体发虚
     layerLabel_->setStyleSheet("color: #e8eaee;");
     auto* headerRow = new QHBoxLayout;
     headerRow->setSpacing(7);

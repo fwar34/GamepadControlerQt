@@ -329,7 +329,6 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
             border: 1px solid #40434a;
             border-radius: 8px;
             margin-top: 12px;
-            font-weight: bold;
             color: #dfe3e8;
         }
         QGroupBox::title {
@@ -339,6 +338,8 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
             padding: 2px 6px;
             color: #7fc9c4;
             background-color: transparent;
+            font-weight: bold;
+            font-family: "DengXian";   /* 标题保留等线真粗体，内容恢复正常字重 */
         }
         QPushButton {
             background-color: #3d4147;
@@ -461,8 +462,8 @@ void MainWindow::onLayerChanged(const QString& activeLayerName) {
 // ============================================================
 void MainWindow::onConnectionChanged(bool connected) {
     connectionLabel_->setText(connected ? tr("手柄：已连接") : tr("手柄：未连接"));
-    connectionLabel_->setStyleSheet(connected ? QStringLiteral("color: #66bb6a; font-weight: bold;")
-                                              : QStringLiteral("color: #ef5350; font-weight: bold;"));
+    connectionLabel_->setStyleSheet(connected ? QStringLiteral("color: #66bb6a;")
+                                              : QStringLiteral("color: #ef5350;"));
     // 手柄连接状态变化时，同步启停按钮与悬浮窗圆点的颜色（未连接 -> 红）
     if (mapper_)
         applyStartStopState(mapper_->isRunning());
@@ -477,7 +478,7 @@ void MainWindow::refreshLayerButtons() {
     for (QPushButton* btn : layerButtons_) {
         const QString layerId = btn->objectName();
         const bool active = input_->isLayerActive(layerId);
-        btn->setStyleSheet(active ? QStringLiteral("background: #22958c; color: white; font-weight: bold; border-radius: 6px;")
+        btn->setStyleSheet(active ? QStringLiteral("background: #22958c; color: white; font-weight: bold; font-family: \"DengXian\"; border-radius: 6px;")
                                   : QString());
         // 更新按钮文本为当前层名称
         if (const OperationLayer* layer = input_->profile.findLayer(layerId)) {
@@ -534,7 +535,8 @@ void MainWindow::applyStartStopState(bool mappingActive) {
     startStopButton_->setText(mappingActive ? tr("停止映射") : tr("启动映射"));
     startStopButton_->setStyleSheet(
         QStringLiteral("QPushButton { background-color: %1; color: %2;"
-                       " font-weight: bold; border-radius: 6px; padding: 4px 12px; }")
+                       " font-weight: bold; font-family: \"DengXian\";"
+                       " border-radius: 6px; padding: 4px 12px; }")
             .arg(bg, fg));
 }
 
