@@ -129,7 +129,8 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
             startStopButton_->setText(tr("停止映射"));
             statusBar()->showMessage(tr("已启动映射"));
         } else if (!checked && mapper_->isRunning()) {
-            gamepad_->stop();
+            // 只停止键鼠注入，保持手柄轮询运行：
+            // 否则"切换映射"键无法被读取，停止后无法再次开启映射
             mapper_->stop();
             startStopButton_->setText(tr("启动映射"));
             statusBar()->showMessage(tr("已停止：释放所有按键"));
@@ -383,11 +384,11 @@ void MainWindow::refreshLayerButtons() {
 // ============================================================
 // onToggleStartStop：启动/停止映射开关
 // ============================================================
-// 停止时同时停掉手柄轮询与映射器（look 线程），并释放所有按键；
-// 启动时重新拉起两者（XInput 轮询 / 注入）。
+// 停止时只停映射器（look 线程 + 断开注入信号），并释放所有按键；
+// 保持手柄轮询运行，这样"切换映射"键仍能被读取，可再次开启映射。
+// 启动时拉起注入（XInput 轮询始终运行，start 幂等）。
 void MainWindow::onToggleStartStop() {
     if (mapper_->isRunning()) {
-        gamepad_->stop();
         mapper_->stop();
         startStopButton_->setText(tr("启动映射"));
         statusBar()->showMessage(tr("已停止：释放所有按键"));
