@@ -141,15 +141,17 @@ void OverlayWidget::setHeldButtons(const QSet<ControllerButton>& buttons) {
 }
 
 // ============================================================
-// setMappingActive：同步映射运行状态（顶部圆点颜色）
+// setMappingState：同步映射运行状态（顶部圆点颜色）
 // ============================================================
-// 与主窗口启停按钮同色：运行中绿色，已停止灰色。
-void OverlayWidget::setMappingActive(bool mappingActive) {
+// 与主窗口启停按钮同色：手柄未连接时红色，连接+运行绿色，连接+停止灰色。
+void OverlayWidget::setMappingState(bool connected, bool mappingActive) {
     if (!statusDot_) return;
-    const QString color = mappingActive ? QStringLiteral("#2e7d32")
-                                        : QStringLiteral("#9e9e9e");
+    const QString color = !connected ? QStringLiteral("#c62828")
+                                     : (mappingActive ? QStringLiteral("#2e7d32")
+                                                      : QStringLiteral("#9e9e9e"));
     statusDot_->setStyleSheet(QStringLiteral(
-        "background-color: %1; border-radius: 6px;").arg(color));
+        "background-color: %1; border: 1px solid rgba(255,255,255,130);"
+        "border-radius: 6px;").arg(color));
 }
 
 // ============================================================

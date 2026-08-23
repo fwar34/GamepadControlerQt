@@ -67,7 +67,7 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     overlay_ = new OverlayWidget(nullptr);
     overlay_->setSteamInput(input_);
     overlay_->setMainWindow(this);
-    overlay_->setMappingActive(true);   // 初始映射已启动（圆点绿色）
+    overlay_->setMappingState(true, true);   // 初始映射已启动（圆点绿色）
     // 恢复上次保存的悬浮窗位置（-1 表示未保存过，使用默认位置）
     const GlobalSettings& gs0 = input_->profile.globalSettings;
     if (gs0.overlayX >= 0 && gs0.overlayY >= 0)
@@ -463,6 +463,9 @@ void MainWindow::onConnectionChanged(bool connected) {
     connectionLabel_->setText(connected ? tr("手柄：已连接") : tr("手柄：未连接"));
     connectionLabel_->setStyleSheet(connected ? QStringLiteral("color: #66bb6a; font-weight: bold;")
                                               : QStringLiteral("color: #ef5350; font-weight: bold;"));
+    // 手柄连接状态变化时，同步启停按钮与悬浮窗圆点的颜色（未连接 -> 红）
+    if (mapper_)
+        applyStartStopState(mapper_->isRunning());
 }
 
 // ============================================================
@@ -510,22 +513,29 @@ void MainWindow::onToggleStartStop() {
 // ============================================================
 // applyStartStopState：同步启停按钮文字与状态色
 // ============================================================
-// 映射运行中：绿底白字「停止映射」；已停止：灰底深字「启动映射」。
+// 手柄未连接：红底白字；映射运行中（已连接）：绿底白字「停止映射」；
+// 映射已停止（已连接）：灰底深字「启动映射」。悬浮窗圆点同步同色。
 void MainWindow::applyStartStopState(bool mappingActive) {
     if (!startStopButton_) return;
+    const bool connected = gamepad_ && gamepad_->isConnected();
     if (overlay_)
-        overlay_->setMappingActive(mappingActive);   // 悬浮窗圆点同步状态
-    if (mappingActive) {
-        startStopButton_->setText(tr("停止映射"));
-        startStopButton_->setStyleSheet(
-            QStringLiteral("QPushButton { background-color: #2e7d32; color: white;"
-                           " font-weight: bold; border-radius: 6px; padding: 4px 12px; }"));
+        overlay_->setMappingState(connected, mappingActive);   // 悬浮窗圆点同步状态
+    QString bg, fg;
+    if (!connected) {
+        bg = QStringLiteral("#c62828");   // 红：手柄未连接
+        fg = QStringLiteral("#ffffff");
+    } else if (mappingActive) {
+        bg = QStringLiteral("#2e7d32");   // 绿：映射运行中
+        fg = QStringLiteral("#ffffff");
     } else {
-        startStopButton_->setText(tr("启动映射"));
-        startStopButton_->setStyleSheet(
-            QStringLiteral("QPushButton { background-color: #9e9e9e; color: #212121;"
-                           " font-weight: bold; border-radius: 3px; padding: 4px 12px; }"));
+        bg = QStringLiteral("#9e9e9e");   // 灰：映射已停止
+        fg = QStringLiteral("#212121");
     }
+    startStopButton_->setText(mappingActive ? tr("停止映射") : tr("启动映射"));
+    startStopButton_->setStyleSheet(
+        QStringLiteral("QPushButton { background-color: %1; color: %2;"
+                       " font-weight: bold; border-radius: 6px; padding: 4px 12px; }")
+            .arg(bg, fg));
 }
 
 // ============================================================
