@@ -459,6 +459,8 @@ void MainWindow::editLayer(const QString& layerName) {
     dlg.exec();
     refreshLayerButtons();
     emit input_->profileChanged();
+    // 刷新悬浮窗层名（层名可能被修改）
+    onLayerChanged(input_->activeLayerName());
 }
 
 // ============================================================

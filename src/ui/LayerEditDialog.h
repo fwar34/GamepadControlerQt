@@ -59,4 +59,8 @@ private:
 
     void buildUi();
     ControllerButton currentButton() const;  // 当前选中按钮
+    // 生成映射的描述文本（左侧按钮列表项用，SwitchLayer 解析为目标层显示名）
+    QString mappingDesc(const KeyMapping* m) const;
+    // 按副本刷新左侧指定按钮列表项的文本（右侧改动后即时同步）
+    void updateButtonListItem(ControllerButton button);
 };

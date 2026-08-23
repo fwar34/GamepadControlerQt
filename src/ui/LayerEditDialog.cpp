@@ -127,7 +127,7 @@ QComboBox* makeLayerCombo(ControllerProfile* profile) {
     QComboBox* combo = new QComboBox;
     combo->addItem(QObject::tr("无"), QString());
     for (const OperationLayer& l : profile->layers)
-        combo->addItem(layerDisplayName(l.name), l.id);
+        combo->addItem(l.name, l.id);
     return combo;
 }
 
@@ -149,7 +149,7 @@ void setComboIndex(QComboBox* combo, const QVariant& data) {
 // copy_ = *layer 建立编辑副本；初始选中第一个手柄按钮并加载其配置。
 LayerEditDialog::LayerEditDialog(ControllerProfile* profile, OperationLayer* layer, QWidget* parent)
     : QDialog(parent), profile_(profile), layer_(layer), copy_(*layer) {
-    setWindowTitle(tr("编辑层 - %1").arg(layerDisplayName(layer->name)));
+    setWindowTitle(tr("编辑层 - %1").arg(layer->name));
     buildUi();
 
     // 默认选中列表第一项（A 键）并加载表单
@@ -186,21 +186,10 @@ void LayerEditDialog::buildUi() {
     // ---- 左侧：手柄按键列表 ----
     buttonList_ = new QListWidget(this);
     for (const ControllerButton b : allControllerButtons()) {
-        const KeyMapping* m = copy_.getMapping(b);
-        QString desc;
-        if (m) {
-            desc = m->describe();
-            // SwitchLayer：将 layer id 解析为显示名
-            if (m->action.type == MappedAction::Type::SwitchLayer) {
-                const OperationLayer* target = profile_->findLayer(m->action.layerName);
-                if (target)
-                    desc = QStringLiteral("切换→%1").arg(target->name);
-            }
-        } else {
-            desc = QStringLiteral("—");
-        }
         QListWidgetItem* item = new QListWidgetItem(
-            QStringLiteral("%1   %2").arg(controllerButtonDisplayName(b), desc), buttonList_);
+            QStringLiteral("%1   %2").arg(controllerButtonDisplayName(b),
+                                          mappingDesc(copy_.getMapping(b))),
+            buttonList_);
         item->setData(Qt::UserRole, static_cast<int>(b));
     }
     // 切换选中项：先把上一个按钮的表单存进副本，再加载新按钮
@@ -257,6 +246,20 @@ void LayerEditDialog::buildUi() {
     }
     form->addLayout(subRow);
     form->addStretch(1);
+
+    // 参数下拉框变更即保存并刷新左侧列表（键盘键/鼠标键/目标层/子命令），
+    // 保证右侧任何改动都即时同步到左侧按钮描述，无需等重新打开对话框。
+    // loading_ 置位时（loadForm 填充控件）跳过，避免初始化期递归保存。
+    auto saveCurrent = [this]() {
+        if (!loading_)
+            saveFormFor(currentButton());
+    };
+    connect(keyCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, saveCurrent);
+    connect(mouseCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, saveCurrent);
+    connect(mouseToggleCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, saveCurrent);
+    connect(layerCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, saveCurrent);
+    for (int i = 0; i < 3; ++i)
+        connect(subCombos_[i], QOverload<int>::of(&QComboBox::currentIndexChanged), this, saveCurrent);
 
     hbox->addLayout(form, 1);
     root->addLayout(hbox, 1);
@@ -365,6 +368,7 @@ void LayerEditDialog::saveFormFor(ControllerButton button) {
     const int typeIdx = actionTypeCombo_->currentIndex();
     if (typeIdx <= 0) {  // 无（不映射）：移除现有映射
         copy_.buttonMappings.remove(button);
+        updateButtonListItem(button);
         return;
     }
 
@@ -385,6 +389,7 @@ void LayerEditDialog::saveFormFor(ControllerButton button) {
             const QString layerName = layerCombo_->currentData().toString();
             if (layerName.isEmpty()) {
                 copy_.buttonMappings.remove(button);
+                updateButtonListItem(button);
                 return;
             }
             m.action = MappedAction::switchLayer(layerName);
@@ -416,6 +421,40 @@ void LayerEditDialog::saveFormFor(ControllerButton button) {
             m.subCommands.append(sub);
     }
     copy_.buttonMappings.insert(button, m);
+    updateButtonListItem(button);
+}
+
+// ============================================================
+// mappingDesc：生成一条映射的描述文本（左侧按钮列表项用）
+// ============================================================
+QString LayerEditDialog::mappingDesc(const KeyMapping* m) const {
+    if (!m)
+        return QStringLiteral("—");
+    QString desc = m->describe();
+    // SwitchLayer：将 layer id 解析为显示名
+    if (m->action.type == MappedAction::Type::SwitchLayer) {
+        const OperationLayer* target = profile_->findLayer(m->action.layerName);
+        if (target)
+            desc = QStringLiteral("切换→%1").arg(target->name);
+    }
+    return desc;
+}
+
+// ============================================================
+// updateButtonListItem：按副本刷新左侧指定按钮列表项的文本
+// ============================================================
+// 右侧表单改动写回副本后调用，保证左侧列表与右侧动作即时一致，
+// 无需等重新打开对话框才看到最新描述。
+void LayerEditDialog::updateButtonListItem(ControllerButton button) {
+    if (!buttonList_) return;
+    for (int i = 0; i < buttonList_->count(); ++i) {
+        QListWidgetItem* item = buttonList_->item(i);
+        if (static_cast<ControllerButton>(item->data(Qt::UserRole).toInt()) == button) {
+            item->setText(QStringLiteral("%1   %2").arg(
+                controllerButtonDisplayName(button), mappingDesc(copy_.getMapping(button))));
+            return;
+        }
+    }
 }
 
 // ============================================================

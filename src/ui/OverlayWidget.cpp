@@ -73,7 +73,7 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
 // ============================================================
 void OverlayWidget::setLayerName(const QString& name) {
     currentLayerName_ = name;
-    layerLabel_->setText(tr("当前层: %1").arg(layerDisplayName(name)));
+    layerLabel_->setText(tr("当前层: %1").arg(name));
     if (expanded_)
         refreshMappings();
     adjustSize();
@@ -119,29 +119,37 @@ void OverlayWidget::refreshMappingsIfExpanded() {
 // ============================================================
 // refreshMappings：展开时刷新当前层已映射的按键列表
 // ============================================================
+// 展示对象为「当前激活的操作层」自身的映射（栈顶；未激活任何
+// 操作层时为公共层），而不是整个层栈的有效映射，避免：
+//   - 未激活操作层时只显示公共层兜底、看不到操作层配置；
+//   - 激活操作层时混入公共层兜底键导致列表混杂。
 void OverlayWidget::refreshMappings() {
     if (!steamInput_ || !mappingsLabel_) return;
 
-    QStringList lines;
-    // 遍历所有手柄按钮，查询当前层栈下的有效映射
-    for (const ControllerButton btn : allControllerButtons()) {
-        const KeyMapping* m = steamInput_->getEffectiveMapping(btn);
-        if (!m) continue;
-        // 跳过系统切换映射（切换映射/屏幕键盘/悬浮窗）
-        if (m->action.type == MappedAction::Type::ToggleMapping) continue;
-        if (m->action.type == MappedAction::Type::ToggleOnScreenKeyboard) continue;
-        if (m->action.type == MappedAction::Type::ToggleOverlay) continue;
+    // 定位当前层：最后激活的操作层（栈顶）或公共层
+    const QVector<const OperationLayer*> active = steamInput_->getActiveLayers();
+    const OperationLayer* layer = active.isEmpty()
+                                      ? &steamInput_->profile.commonLayer
+                                      : active.last();
 
-        QString desc;
-        if (m->action.type == MappedAction::Type::SwitchLayer) {
-            // SwitchLayer：将 layer id 解析为显示名
-            const OperationLayer* target = steamInput_->profile.findLayer(m->action.layerName);
-            desc = QStringLiteral("切换→%1").arg(target ? target->name : m->action.layerName);
-        } else {
-            desc = m->describe();
+    QStringList lines;
+    if (layer) {
+        // 遍历当前层内所有已映射的手柄按钮
+        for (const ControllerButton btn : allControllerButtons()) {
+            const KeyMapping* m = layer->getMapping(btn);
+            if (!m) continue;
+
+            QString desc;
+            if (m->action.type == MappedAction::Type::SwitchLayer) {
+                // SwitchLayer：将 layer id 解析为显示名
+                const OperationLayer* target = steamInput_->profile.findLayer(m->action.layerName);
+                desc = QStringLiteral("切换→%1").arg(target ? target->name : m->action.layerName);
+            } else {
+                desc = m->describe();
+            }
+            lines << QStringLiteral("%1 → %2").arg(
+                controllerButtonDisplayName(btn), desc);
         }
-        lines << QStringLiteral("%1 → %2").arg(
-            controllerButtonDisplayName(btn), desc);
     }
     // 摇杆映射
     lines << tr("左摇杆 → WASD 移动");
