@@ -21,6 +21,7 @@
 
 #include "OverlayWidget.h"
 #include "LayerEditDialog.h"
+#include "DarkTitleBar.h"
 
 #include "../core/ConfigManager.h"
 #include "../core/InputTypes.h"
@@ -426,6 +427,11 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
         if (overlay_)
             overlay_->toggleExpanded();
     });
+
+    // ---- 标题栏深色化（DWM 沉浸式深色标题栏，与深色主题统一） ----
+#ifdef Q_OS_WIN
+    enableDarkTitleBar(this);
+#endif
 }
 
 // ---------------------------------------------------------------

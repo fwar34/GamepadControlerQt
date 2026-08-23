@@ -16,6 +16,7 @@
 // ============================================================
 
 #include "LayerEditDialog.h"
+#include "DarkTitleBar.h"
 
 #include <QComboBox>
 #include <QDialogButtonBox>
@@ -363,6 +364,9 @@ void LayerEditDialog::buildUi() {
             background-color: transparent;
         }
     )");
+
+    // ---- 标题栏深色化，与主窗口一致 ----
+    enableDarkTitleBar(this);
 
     resize(620, 480);
 }
