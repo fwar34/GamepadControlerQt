@@ -143,13 +143,35 @@ void SteamInput::handleButtonEvent(ControllerButton button, bool isPressed) {
     // 松开时（上面分支）停用该层。注意：这里不再广播 buttonMapped。
     if (mapping->action.type == MappedAction::Type::SwitchLayer) {
         if (isPressed) {
+            // 先按 id 查找；找不到则按 name 查找（兼容旧配置）
             OperationLayer* target = profile.findLayer(mapping->action.layerName);
+            if (!target) {
+                for (OperationLayer& l : profile.layers)
+                    if (l.name == mapping->action.layerName) { target = &l; break; }
+            }
             if (target && !isLayerActive(target->name)) {
                 activateLayer(target);
                 buttonTriggeredLayers_.insert(button, target);
             }
         }
         return;
+    }
+
+    // 切换类动作：仅在按下时触发，松开忽略
+    if (isPressed) {
+        switch (mapping->action.type) {
+            case MappedAction::Type::ToggleMapping:
+                emit toggleMappingRequested();
+                return;
+            case MappedAction::Type::ToggleOnScreenKeyboard:
+                emit toggleOnScreenKeyboardRequested();
+                return;
+            case MappedAction::Type::ToggleOverlay:
+                emit toggleOverlayRequested();
+                return;
+            default:
+                break;
+        }
     }
 
     // 其余动作（键盘/鼠标/视角等）交给映射器执行

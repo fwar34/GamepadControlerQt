@@ -47,6 +47,15 @@ QString KeyMapping::describe() const {
         case MappedAction::Type::LookAround:
             parts << QStringLiteral("视角控制");
             break;
+        case MappedAction::Type::ToggleMapping:
+            parts << QStringLiteral("切换映射");
+            break;
+        case MappedAction::Type::ToggleOnScreenKeyboard:
+            parts << QStringLiteral("切换屏幕键盘");
+            break;
+        case MappedAction::Type::ToggleOverlay:
+            parts << QStringLiteral("切换悬浮窗");
+            break;
     }
     // 追加子命令（组合键），同样翻译成可读键名
     for (const int sub : subCommands)
@@ -59,12 +68,10 @@ QString KeyMapping::describe() const {
 // ============================================================
 // 返回一份全新的默认 ControllerProfile：
 //   - 公共层（Common）：绑定常用键（空格/左右键/ESC 等）+ 视角控制，
-//     以及 10 个"层切换"映射；
-//   - 10 个操作层：各自带显示名与触发按键信息（triggerButton），
-//     具体键位映射留空，由用户通过 UI 编辑。
+//     不预设层切换映射，由用户通过 UI 或配置文件自行设置；
+//   - 10 个操作层：各自带显示名，具体键位映射留空，由用户编辑。
 ControllerProfile ControllerProfile::createDefault() {
     ControllerProfile p;
-    // 公共层：id 与 name 均为 "Common"（id 唯一固定，name 可改）
     p.commonLayer.id = QStringLiteral("Common");
     p.commonLayer.name = QStringLiteral("Common");
 
@@ -86,37 +93,15 @@ ControllerProfile ControllerProfile::createDefault() {
     p.commonLayer.buttonMappings.insert(
         ControllerButton::RIGHT_STICK_CLICK, KeyMapping{MappedAction::lookAround(), {}});
 
-    // ---- 层切换按键映射 ----
-    // 公共层为每个操作层绑定一个"按住激活"的 SwitchLayer 映射：
-    // 按住对应手柄按键即激活该层，松开自动回退公共层。
-    // 注意：OperationLayer 里的 triggerButton 仅用于 UI 显示，
-    // 实际切换动作完全由这里公共层的 SwitchLayer 映射完成。
-    struct Trigger {
-        const char* name;          // 层名（同时作为默认 id）
-        ControllerButton button;   // 触发按键
+    // ---- 10 个操作层 ----
+    // 仅创建层对象，不预设 SwitchLayer 映射，由用户自行配置
+    const char* layerIds[MAX_LAYERS] = {
+        "Layer1", "Layer2", "Layer3", "Layer4", "Layer5",
+        "Layer6", "Layer7", "Layer8", "Layer9", "Layer10",
     };
-    const Trigger triggers[MAX_LAYERS] = {
-        {"Layer1", ControllerButton::DPAD_UP},
-        {"Layer2", ControllerButton::DPAD_DOWN},
-        {"Layer3", ControllerButton::DPAD_LEFT},
-        {"Layer4", ControllerButton::DPAD_RIGHT},
-        {"Layer5", ControllerButton::LEFT_SHOULDER},
-        {"Layer6", ControllerButton::RIGHT_SHOULDER},
-        {"Layer7", ControllerButton::LEFT_STICK_CLICK},
-        {"Layer8", ControllerButton::TOUCHPAD_CLICK},
-        {"Layer9", ControllerButton::LEFT_TRIGGER_CLICK},
-        {"Layer10", ControllerButton::RIGHT_TRIGGER_CLICK},
-    };
-
-    for (const Trigger& t : triggers) {
-        // 公共层：绑定层切换动作
-        p.commonLayer.buttonMappings.insert(
-            t.button, KeyMapping{MappedAction::switchLayer(QString::fromLatin1(t.name)), {}});
-        // 操作层：triggerButton 仅用于 UI 显示，实际切换由公共层的 SwitchLayer 映射完成
-        OperationLayer layer(QString::fromLatin1(t.name));
-        layer.name = layerDisplayName(layer.id);   // 显示名带中文别名（如 "Layer1 战斗"）
-        layer.hasTriggerButton = true;
-        layer.triggerButton = t.button;
+    for (int i = 0; i < MAX_LAYERS; ++i) {
+        OperationLayer layer(QString::fromLatin1(layerIds[i]));
+        layer.name = layerDisplayName(layer.id);
         p.layers.append(layer);
     }
 

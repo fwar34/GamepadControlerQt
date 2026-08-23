@@ -127,7 +127,7 @@ QComboBox* makeLayerCombo(ControllerProfile* profile) {
     QComboBox* combo = new QComboBox;
     combo->addItem(QObject::tr("无"), QString());
     for (const OperationLayer& l : profile->layers)
-        combo->addItem(layerDisplayName(l.name), l.name);
+        combo->addItem(layerDisplayName(l.name), l.id);
     return combo;
 }
 
@@ -187,7 +187,18 @@ void LayerEditDialog::buildUi() {
     buttonList_ = new QListWidget(this);
     for (const ControllerButton b : allControllerButtons()) {
         const KeyMapping* m = copy_.getMapping(b);
-        const QString desc = m ? m->describe() : QStringLiteral("—");
+        QString desc;
+        if (m) {
+            desc = m->describe();
+            // SwitchLayer：将 layer id 解析为显示名
+            if (m->action.type == MappedAction::Type::SwitchLayer) {
+                const OperationLayer* target = profile_->findLayer(m->action.layerName);
+                if (target)
+                    desc = QStringLiteral("切换→%1").arg(target->name);
+            }
+        } else {
+            desc = QStringLiteral("—");
+        }
         QListWidgetItem* item = new QListWidgetItem(
             QStringLiteral("%1   %2").arg(controllerButtonDisplayName(b), desc), buttonList_);
         item->setData(Qt::UserRole, static_cast<int>(b));
@@ -210,6 +221,7 @@ void LayerEditDialog::buildUi() {
     actionTypeCombo_->addItems({
         tr("无（不映射）"), tr("键盘按键"), tr("鼠标点击"), tr("鼠标长按"),
         tr("切换层"), tr("鼠标移动"), tr("视角控制"),
+        tr("切换映射"), tr("切换屏幕键盘"), tr("切换悬浮窗"),
     });
     // 切换动作类型时刷新参数页
     connect(actionTypeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
@@ -231,6 +243,9 @@ void LayerEditDialog::buildUi() {
     paramStack_->addWidget(layerCombo_);                           // 4 切换层
     paramStack_->addWidget(new QLabel(tr("由左摇杆输入驱动"), this)); // 5 鼠标移动
     paramStack_->addWidget(new QLabel(tr("由右摇杆输入驱动"), this)); // 6 视角控制
+    paramStack_->addWidget(new QLabel(tr("按下时切换映射启停"), this)); // 7 切换映射
+    paramStack_->addWidget(new QLabel(tr("按下时切换屏幕键盘"), this)); // 8 切换屏幕键盘
+    paramStack_->addWidget(new QLabel(tr("按下时切换悬浮窗"), this)); // 9 切换悬浮窗
     form->addWidget(paramStack_);
 
     // 子命令（组合键）：仅键盘按键动作生效，最多 3 个
@@ -292,13 +307,37 @@ void LayerEditDialog::loadForm() {
                 break;
             case MappedAction::Type::SwitchLayer:
                 actionTypeCombo_->setCurrentIndex(4);
-                setComboIndex(layerCombo_, m->action.layerName);
+                // 先按 id 匹配；匹配不到则按 name 匹配（兼容旧配置）
+                {
+                    const int idx = layerCombo_->findData(m->action.layerName);
+                    if (idx >= 0) {
+                        layerCombo_->setCurrentIndex(idx);
+                    } else {
+                        for (int i = 0; i < layerCombo_->count(); ++i) {
+                            const QString layerId = layerCombo_->itemData(i).toString();
+                            const OperationLayer* l = profile_->findLayer(layerId);
+                            if (l && l->name == m->action.layerName) {
+                                layerCombo_->setCurrentIndex(i);
+                                break;
+                            }
+                        }
+                    }
+                }
                 break;
             case MappedAction::Type::MouseMove:
                 actionTypeCombo_->setCurrentIndex(5);
                 break;
             case MappedAction::Type::LookAround:
                 actionTypeCombo_->setCurrentIndex(6);
+                break;
+            case MappedAction::Type::ToggleMapping:
+                actionTypeCombo_->setCurrentIndex(7);
+                break;
+            case MappedAction::Type::ToggleOnScreenKeyboard:
+                actionTypeCombo_->setCurrentIndex(8);
+                break;
+            case MappedAction::Type::ToggleOverlay:
+                actionTypeCombo_->setCurrentIndex(9);
                 break;
         }
     }
@@ -356,6 +395,15 @@ void LayerEditDialog::saveFormFor(ControllerButton button) {
             break;
         case 6:  // 视角控制
             m.action = MappedAction::lookAround();
+            break;
+        case 7:  // 切换映射
+            m.action = MappedAction::toggleMapping();
+            break;
+        case 8:  // 切换屏幕键盘
+            m.action = MappedAction::toggleOnScreenKeyboard();
+            break;
+        case 9:  // 切换悬浮窗
+            m.action = MappedAction::toggleOverlay();
             break;
         default:
             return;

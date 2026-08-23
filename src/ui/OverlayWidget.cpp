@@ -95,6 +95,28 @@ void OverlayWidget::setHeldButtons(const QSet<ControllerButton>& buttons) {
 }
 
 // ============================================================
+// toggleExpanded：切换展开/收起状态（手柄触发）
+// ============================================================
+void OverlayWidget::toggleExpanded() {
+    expanded_ = !expanded_;
+    if (expanded_) {
+        refreshMappings();
+        mappingsLabel_->show();
+    } else {
+        mappingsLabel_->hide();
+    }
+    adjustSize();
+}
+
+// ============================================================
+// refreshMappingsIfExpanded：配置变更时刷新展开状态下的映射列表
+// ============================================================
+void OverlayWidget::refreshMappingsIfExpanded() {
+    if (expanded_)
+        refreshMappings();
+}
+
+// ============================================================
 // refreshMappings：展开时刷新当前层已映射的按键列表
 // ============================================================
 void OverlayWidget::refreshMappings() {
@@ -105,10 +127,21 @@ void OverlayWidget::refreshMappings() {
     for (const ControllerButton btn : allControllerButtons()) {
         const KeyMapping* m = steamInput_->getEffectiveMapping(btn);
         if (!m) continue;
-        // 跳过层切换映射（仅显示实际操作映射）
-        if (m->action.type == MappedAction::Type::SwitchLayer) continue;
+        // 跳过系统切换映射（切换映射/屏幕键盘/悬浮窗）
+        if (m->action.type == MappedAction::Type::ToggleMapping) continue;
+        if (m->action.type == MappedAction::Type::ToggleOnScreenKeyboard) continue;
+        if (m->action.type == MappedAction::Type::ToggleOverlay) continue;
+
+        QString desc;
+        if (m->action.type == MappedAction::Type::SwitchLayer) {
+            // SwitchLayer：将 layer id 解析为显示名
+            const OperationLayer* target = steamInput_->profile.findLayer(m->action.layerName);
+            desc = QStringLiteral("切换→%1").arg(target ? target->name : m->action.layerName);
+        } else {
+            desc = m->describe();
+        }
         lines << QStringLiteral("%1 → %2").arg(
-            controllerButtonDisplayName(btn), m->describe());
+            controllerButtonDisplayName(btn), desc);
     }
     // 摇杆映射
     lines << tr("左摇杆 → WASD 移动");

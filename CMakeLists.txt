@@ -59,7 +59,7 @@ target_link_libraries(GamepadControllerQt PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
 
 if(WIN32)
     target_compile_definitions(GamepadControllerQt PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
-    target_link_libraries(GamepadControllerQt PRIVATE winmm xinput)
+    target_link_libraries(GamepadControllerQt PRIVATE winmm xinput1_4)
 
     # ---- UAC 管理员清单 ----
     # 目标游戏（如 WoW）常以管理员权限运行（高完整性级别），普通权限的

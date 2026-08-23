@@ -1,15 +1,15 @@
 # AGENTS.md
 
-## 项目概况
+## Project
 
-Windows 本机手柄 → 键鼠映射器（Qt Widgets GUI）。单包 C++17 项目，无子包、无 monorepo 结构。
+Windows native gamepad → keyboard/mouse mapper (Qt Widgets GUI). Single-package C++17 project, no monorepo. Ported from `L:\steamlike` Android project, stripped of TCP bridge and Android services.
 
-## 构建
+## Build
 
-CMake 3.16+ / Ninja / Qt Widgets（Qt 5.12+ 或 Qt 6）。项目同时支持两个 Qt 版本，构建目录分开：
+CMake 3.16+ / Ninja / Qt Widgets (Qt 5.12+ or Qt 6). Two separate build directories for the two Qt versions:
 
 ```powershell
-# Qt 6（msys2 UCRT64）
+# Qt 6 (msys2 UCRT64)
 cmake -S . -B build-qt6 -G "Ninja" `
   -DCMAKE_PREFIX_PATH=M:/msys64/ucrt64 `
   -DCMAKE_CXX_COMPILER=M:/msys64/ucrt64/bin/g++.exe `
@@ -17,7 +17,7 @@ cmake -S . -B build-qt6 -G "Ninja" `
   -DCMAKE_BUILD_TYPE=Release
 cmake --build build-qt6
 
-# Qt 5（H:\Qt\5.15.2\mingw81_64）
+# Qt 5 (H:\Qt\5.15.2\mingw81_64)
 cmake -S . -B build -G "Ninja" `
   -DCMAKE_PREFIX_PATH=H:/Qt/5.15.2/mingw81_64 `
   -DCMAKE_CXX_COMPILER=H:/Qt/Tools/mingw810_64/bin/g++.exe `
@@ -26,40 +26,52 @@ cmake -S . -B build -G "Ninja" `
 cmake --build build
 ```
 
-Qt 5 运行时需将 `H:\Qt\5.15.2\mingw81_64\bin` 加入 PATH。
+Qt 5 runtime requires `H:\Qt\5.15.2\mingw81_64\bin` on PATH.
 
-## 架构
+## Architecture
 
-三层数据流，单向：
+Single-direction data flow:
 
 ```
 XInputGamepadSource → SteamInput → KeyboardMouseMapper → Windows SendInput
 ```
 
-- **XInputGamepadSource** (`src/gamepad/`): QTimer 125Hz 轮询 XInput，发 buttonChanged/stickChanged 信号
-- **SteamInput** (`src/core/SteamInput.h`): 映射引擎，层管理 + 按键查询 + 输入分发
-- **KeyboardMouseMapper** (`src/core/KeyboardMouseMapper.h`): 键鼠执行器，含独立 look 线程
-- **InputInjector** (`src/core/InputInjector.h`): 注入器接口 + Windows SendInput 实现
+- **XInputGamepadSource** (`src/gamepad/`): QTimer 125Hz polling XInput, emits buttonChanged/stickChanged signals
+- **SteamInput** (`src/core/SteamInput.h`): Mapping engine — layer management + key query + input dispatch
+- **KeyboardMouseMapper** (`src/core/KeyboardMouseMapper.h`): Keyboard/mouse executor, owns dedicated look thread
+- **InputInjector** (`src/core/InputInjector.h`): Injector interface + Windows SendInput implementation
 
-## 关键设计约定
+## Critical Design Rules
 
-- **KeyCode 用 Android 常量**：配置文件和核心层存储 Android KeyEvent 值（如空格=62、W=51），运行时通过 `androidKeyCodeToWindowsVK()` 转为 Windows VK。不要在配置或核心逻辑中直接用 Windows VK 常量。
-- **层查询顺序**：从最后激活的操作层逐层回退到公共层，返回第一个命中的映射。
-- **松开精确释放**：按「已注入状态」释放，不依赖当前层映射，避免切层导致按键卡死。
-- **线程模型**：主线程处理按钮映射 + 写入右摇杆原子量；look 线程固定 8ms 节拍读取并注入鼠标移动。注入器内部 `QMutex` 保护按键状态。
-- **连接防抖**：连续 3 次轮询失败才判定断开，断开时 `releaseAllInputs()` 释放全部注入。
+- **KeyCode uses Android constants**: Config and core layer store Android KeyEvent values (Space=62, W=51, etc.). Runtime converts to Windows VK via `androidKeyCodeToWindowsVK()`. Never use Windows VK constants in config or core logic.
+- **Layer query order**: From last-activated operation layer back to common layer, returns first hit.
+- **Precise release**: Release by "injected state", not current layer mapping — prevents stuck keys on layer switch.
+- **Thread model**: Main thread handles button mapping + writes right-stick atomic; look thread runs fixed 8ms tick for mouse movement. Injector uses QMutex internally.
+- **Connection debounce**: 3 consecutive poll failures = disconnect; disconnect calls `releaseAllInputs()`.
 
-## 源码编码
+## Gotchas
 
-CMakeLists.txt 强制 UTF-8 编译（`-finput-charset=UTF-8 -fexec-charset=UTF-8` / `/utf-8`）。源码中可含中文注释和字符串。
+- **UAC / Administrator**: `src/app.manifest` declares `requireAdministrator`. The exe launches elevated because target games (e.g. WoW) run high-integrity — without elevation, SendInput is silently blocked by UIPI. Don't remove the manifest unless you don't need to inject into elevated windows.
+- **WIN32 subsystem**: CMake uses `add_executable(... WIN32 ...)` — no console window. Debug output goes to Qt debug or a file.
+- **Signal connections use DirectConnection**: Gamepad polling thread → SteamInput uses `Qt::DirectConnection` for low latency. This means the handler runs on the gamepad thread, not the GUI thread.
+- **Factory returns raw pointer**: `createWindowsInputInjector()` returns `InputInjector*`; caller must `delete` it.
 
-## 配置文件
+## Source Encoding
 
-- 路径：`<exe目录>\steamlike_config.json`
-- 格式：JSON version=2，与安卓版 `steamlike_config.json` 兼容
-- `triggerButton` 字段仅 UI 展示，不参与运行时层切换（实际切换由公共层 SwitchLayer 映射驱动）
-- `.gitignore` 已排除 `steamlike_config.json`
+CMakeLists.txt enforces UTF-8 (`-finput-charset=UTF-8 -fexec-charset=UTF-8` / `/utf-8`). Source files may contain Chinese comments and strings.
 
-## 无测试 / 无 CI / 无 Linter
+## Config File
 
-项目无测试套件、无 CI 配置、无代码检查工具。验证方式为编译通过 + 手柄实机测试。
+- Path: `<exe dir>\steamlike_config.json`
+- Format: JSON version=2, compatible with Android `steamlike_config.json`
+- `triggerButton` is UI-only display, does not affect runtime layer switching (actual switching driven by common layer's SwitchLayer mapping)
+- `.gitignore` excludes `steamlike_config.json`
+
+## Git
+
+- Commit messages in Chinese (per `.trae/rules/git-commit-message.md`)
+- If `git push` fails, check for local proxy config and push through it
+
+## No Tests / No CI / No Linter
+
+Verification is compile-pass + real gamepad testing.

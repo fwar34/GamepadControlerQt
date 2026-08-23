@@ -74,6 +74,12 @@ signals:
     void layerChanged(const QString& activeLayerName);
     // 配置被整体替换（loadProfile 或 setGlobalSettings 后触发）
     void profileChanged();
+    // 切换映射启停请求（由 ToggleMapping 动作触发）
+    void toggleMappingRequested();
+    // 切换屏幕键盘请求（由 ToggleOnScreenKeyboard 动作触发）
+    void toggleOnScreenKeyboardRequested();
+    // 切换悬浮窗请求（由 ToggleOverlay 动作触发）
+    void toggleOverlayRequested();
 
 private:
     // 根据 activeLayers_ 重新计算 activeLayerName_ 并发出 layerChanged

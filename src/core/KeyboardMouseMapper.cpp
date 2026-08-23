@@ -96,6 +96,9 @@ void KeyboardMouseMapper::onButtonMapped(ControllerButton button, bool isPressed
             handleMouseToggle(button, mapping.action.mouseButton);
             break;
         case MappedAction::Type::SwitchLayer:
+        case MappedAction::Type::ToggleMapping:
+        case MappedAction::Type::ToggleOnScreenKeyboard:
+        case MappedAction::Type::ToggleOverlay:
             break;  // 由 SteamInput 引擎处理
         case MappedAction::Type::MouseMove:
         case MappedAction::Type::LookAround:

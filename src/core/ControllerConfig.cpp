@@ -34,6 +34,9 @@ const QString kTypeMouseToggle = QStringLiteral("mouseToggle");
 const QString kTypeSwitchLayer = QStringLiteral("switchLayer");
 const QString kTypeMouseMove = QStringLiteral("mouseMove");
 const QString kTypeLookAround = QStringLiteral("lookAround");
+const QString kTypeToggleMapping = QStringLiteral("toggleMapping");
+const QString kTypeToggleOnScreenKeyboard = QStringLiteral("toggleOnScreenKeyboard");
+const QString kTypeToggleOverlay = QStringLiteral("toggleOverlay");
 
 // ============================================================
 // actionToJson：MappedAction -> QJsonObject
@@ -63,6 +66,15 @@ QJsonObject actionToJson(const MappedAction& action) {
             break;
         case MappedAction::Type::LookAround:
             json.insert(QStringLiteral("type"), kTypeLookAround);
+            break;
+        case MappedAction::Type::ToggleMapping:
+            json.insert(QStringLiteral("type"), kTypeToggleMapping);
+            break;
+        case MappedAction::Type::ToggleOnScreenKeyboard:
+            json.insert(QStringLiteral("type"), kTypeToggleOnScreenKeyboard);
+            break;
+        case MappedAction::Type::ToggleOverlay:
+            json.insert(QStringLiteral("type"), kTypeToggleOverlay);
             break;
     }
     return json;
@@ -106,6 +118,18 @@ bool parseAction(const QJsonObject& json, MappedAction* out) {
     }
     if (type == kTypeLookAround) {
         *out = MappedAction::lookAround();
+        return true;
+    }
+    if (type == kTypeToggleMapping) {
+        *out = MappedAction::toggleMapping();
+        return true;
+    }
+    if (type == kTypeToggleOnScreenKeyboard) {
+        *out = MappedAction::toggleOnScreenKeyboard();
+        return true;
+    }
+    if (type == kTypeToggleOverlay) {
+        *out = MappedAction::toggleOverlay();
         return true;
     }
     return false;  // 未知类型

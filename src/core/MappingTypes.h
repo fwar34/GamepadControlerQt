@@ -29,12 +29,15 @@
 // ---------------------------------------------------------------------
 struct MappedAction {
     enum class Type {
-        KeyboardKey,   // 键盘按键（keyCode）
-        MouseClick,    // 鼠标单击（mouseButton，按下/松开跟随手柄）
-        SwitchLayer,   // 切换操作层（layerName，按住激活/松开回退）
-        MouseMove,     // 鼠标移动（摇杆动作，无需额外参数）
-        LookAround,    // 视角控制（摇杆动作，右摇杆，独立线程节拍处理）
-        MouseToggle    // 鼠标长按锁存（按住期间保持按下，松开不改变状态）
+        KeyboardKey,            // 键盘按键（keyCode）
+        MouseClick,             // 鼠标单击（mouseButton，按下/松开跟随手柄）
+        SwitchLayer,            // 切换操作层（layerName，按住激活/松开回退）
+        MouseMove,              // 鼠标移动（摇杆动作，无需额外参数）
+        LookAround,             // 视角控制（摇杆动作，右摇杆，独立线程节拍处理）
+        MouseToggle,            // 鼠标长按锁存（按住期间保持按下，松开不改变状态）
+        ToggleMapping,          // 切换映射启停（按下时触发）
+        ToggleOnScreenKeyboard, // 切换 Windows 屏幕键盘（按下时触发）
+        ToggleOverlay           // 切换悬浮窗展开/收起（按下时触发）
     };
 
     Type type = Type::MouseMove;
@@ -82,6 +85,24 @@ struct MappedAction {
         a.type = Type::LookAround;
         return a;
     }
+    // 构造「切换映射启停」动作
+    static MappedAction toggleMapping() {
+        MappedAction a;
+        a.type = Type::ToggleMapping;
+        return a;
+    }
+    // 构造「切换屏幕键盘」动作
+    static MappedAction toggleOnScreenKeyboard() {
+        MappedAction a;
+        a.type = Type::ToggleOnScreenKeyboard;
+        return a;
+    }
+    // 构造「切换悬浮窗」动作
+    static MappedAction toggleOverlay() {
+        MappedAction a;
+        a.type = Type::ToggleOverlay;
+        return a;
+    }
 
     bool operator==(const MappedAction& o) const {
         if (type != o.type) return false;
@@ -90,7 +111,7 @@ struct MappedAction {
             case Type::MouseClick:
             case Type::MouseToggle: return mouseButton == o.mouseButton;
             case Type::SwitchLayer: return layerName == o.layerName;
-            default: return true;
+            default: return true;  // MouseMove/LookAround/ToggleMapping/ToggleOnScreenKeyboard/ToggleOverlay
         }
     }
     bool operator!=(const MappedAction& o) const { return !(*this == o); }

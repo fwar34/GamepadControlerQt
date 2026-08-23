@@ -40,6 +40,10 @@ public:
     void setLayerName(const QString& name);
     // 设置当前按下的手柄按键列表（会按层过滤触发按键）
     void setHeldButtons(const QSet<ControllerButton>& buttons);
+    // 切换展开/收起状态（由手柄 ToggleOverlay 动作触发）
+    void toggleExpanded();
+    // 刷新展开状态下的映射列表（供外部信号连接）
+    void refreshMappingsIfExpanded();
 
 protected:
     void mousePressEvent(QMouseEvent* event) override;

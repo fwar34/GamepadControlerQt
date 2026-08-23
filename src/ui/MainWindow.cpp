@@ -40,6 +40,7 @@
 #include <QCheckBox>
 #include <QCloseEvent>
 #include <QMenu>
+#include <QProcess>
 #include <QSlider>
 #include <QStatusBar>
 #include <QSystemTrayIcon>
@@ -71,24 +72,32 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     overlay_->show();
     // 层变化 -> 悬浮窗更新层名
     connect(input_, &SteamInput::layerChanged, overlay_, &OverlayWidget::setLayerName);
+    // 配置变更 -> 悬浮窗刷新映射列表
+    connect(input_, &SteamInput::profileChanged, overlay_, &OverlayWidget::refreshMappingsIfExpanded);
     // 按键映射事件 -> 悬浮窗更新按下按键（过滤层切换触发按键）
     connect(input_, &SteamInput::buttonMapped, this, [this]() {
         QSet<ControllerButton> filtered;
         const auto& held = input_->heldButtons();
         for (ControllerButton btn : held) {
             const auto* mapping = input_->getEffectiveMapping(btn);
-            if (mapping && mapping->action.type != MappedAction::Type::SwitchLayer) {
+            if (mapping && mapping->action.type != MappedAction::Type::SwitchLayer
+                && mapping->action.type != MappedAction::Type::ToggleMapping
+                && mapping->action.type != MappedAction::Type::ToggleOnScreenKeyboard
+                && mapping->action.type != MappedAction::Type::ToggleOverlay) {
                 filtered.insert(btn);
             }
         }
         overlay_->setHeldButtons(filtered);
     });
-    // 初始更新按键状态（过滤掉层切换触发按键）
+    // 初始更新按键状态（过滤掉层切换和系统切换触发按键）
     QSet<ControllerButton> filtered;
     const auto& initialHeld = input_->heldButtons();
     for (ControllerButton btn : initialHeld) {
         const auto* mapping = input_->getEffectiveMapping(btn);
-        if (mapping && mapping->action.type != MappedAction::Type::SwitchLayer) {
+        if (mapping && mapping->action.type != MappedAction::Type::SwitchLayer
+            && mapping->action.type != MappedAction::Type::ToggleMapping
+            && mapping->action.type != MappedAction::Type::ToggleOnScreenKeyboard
+            && mapping->action.type != MappedAction::Type::ToggleOverlay) {
             filtered.insert(btn);
         }
     }
@@ -305,6 +314,21 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     // 连接手柄连接状态变化信号（注意：需在 gamepad 指针有效时连接）
     connect(gamepad_, &XInputGamepadSource::connectedChanged,
             this, &MainWindow::onConnectionChanged);
+
+    // ---- 手柄动作触发的系统操作 ----
+    // 切换映射启停
+    connect(input_, &SteamInput::toggleMappingRequested, this, [this]() {
+        onToggleStartStop();
+    });
+    // 切换 Windows 屏幕键盘
+    connect(input_, &SteamInput::toggleOnScreenKeyboardRequested, this, []() {
+        QProcess::startDetached(QStringLiteral("osk"));
+    });
+    // 切换悬浮窗展开/收起
+    connect(input_, &SteamInput::toggleOverlayRequested, this, [this]() {
+        if (overlay_)
+            overlay_->toggleExpanded();
+    });
 }
 
 // ---------------------------------------------------------------
@@ -434,6 +458,7 @@ void MainWindow::editLayer(const QString& layerName) {
     LayerEditDialog dlg(&input_->profile, layer, this);
     dlg.exec();
     refreshLayerButtons();
+    emit input_->profileChanged();
 }
 
 // ============================================================
@@ -478,6 +503,10 @@ void MainWindow::onCheckForeground() {
 // ============================================================
 void MainWindow::closeEvent(QCloseEvent* event) {
     if (!input_->profile.globalSettings.confirmOnClose) {
+        // 直接退出：先关闭 overlay 和映射，再接受关闭事件
+        if (overlay_) { overlay_->close(); delete overlay_; overlay_ = nullptr; }
+        mapper_->stop();
+        gamepad_->stop();
         event->accept();
         return;
     }
@@ -488,6 +517,10 @@ void MainWindow::closeEvent(QCloseEvent* event) {
     dialog.addButton(tr("最小化到托盘"), QMessageBox::RejectRole);
     dialog.exec();
     if (dialog.clickedButton() == exitBtn) {
+        // 退出：先关闭 overlay 和映射，再接受关闭事件
+        if (overlay_) { overlay_->close(); delete overlay_; overlay_ = nullptr; }
+        mapper_->stop();
+        gamepad_->stop();
         event->accept();
     } else {
         hide();
@@ -500,13 +533,11 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 // ============================================================
 MainWindow::~MainWindow() {
     if (overlay_) {
-        // 保存悬浮窗位置到配置
         const QPoint pos = overlay_->pos();
         input_->profile.globalSettings.overlayX = pos.x();
         input_->profile.globalSettings.overlayY = pos.y();
         overlay_->close();
         delete overlay_;
     }
-    // 退出时自动保存配置
     ConfigManager::save(input_->profile);
 }
