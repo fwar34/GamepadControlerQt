@@ -7,6 +7,7 @@
 class SteamInput;
 class KeyboardMouseMapper;
 class XInputGamepadSource;
+class QEvent;
 class QLabel;
 class QPushButton;
 class QCheckBox;
@@ -46,6 +47,7 @@ private slots:
     void onApplySettings();
     void onCheckForeground();
     void closeEvent(QCloseEvent* event) override;
+    void changeEvent(QEvent* event) override;
 
 private:
     // 根据当前 profile 重建层按钮文本（含显示名）

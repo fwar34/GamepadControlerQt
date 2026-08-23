@@ -267,9 +267,9 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     releaseOnFgCheck_->setToolTip(tr("离开前台窗口时自动释放所有已注入的按键，防止按键卡死"));
     settingsLayout->addWidget(releaseOnFgCheck_);
 
-    confirmOnCloseCheck_ = new QCheckBox(tr("关闭时确认退出"), settingsGroup);
+    confirmOnCloseCheck_ = new QCheckBox(tr("关闭时退出程序"), settingsGroup);
     confirmOnCloseCheck_->setChecked(gs.confirmOnClose);
-    confirmOnCloseCheck_->setToolTip(tr("关闭窗口时弹出对话框，可选择直接退出或最小化到系统托盘"));
+    confirmOnCloseCheck_->setToolTip(tr("勾选时点击关闭按钮直接退出程序；不勾选时点击关闭按钮最小化到系统托盘（无确认弹窗）"));
     settingsLayout->addWidget(confirmOnCloseCheck_);
 
     // 数值标签随滑块更新，并实时写回引擎（lambda 捕获引用）
@@ -525,32 +525,33 @@ void MainWindow::onCheckForeground() {
 }
 
 // ============================================================
-// closeEvent：关闭时弹出确认对话框（退出/最小化到托盘）
+// closeEvent：关闭窗口（无二次确认弹窗）
 // ============================================================
+// 按设置「关闭时退出程序」决定行为：
+//   - 勾选（默认）：直接退出，先关闭悬浮窗、停止映射与手柄轮询；
+//   - 未勾选：最小化到系统托盘（窗口隐藏，保留托盘图标）。
 void MainWindow::closeEvent(QCloseEvent* event) {
     if (!input_->profile.globalSettings.confirmOnClose) {
-        // 直接退出：先关闭 overlay 和映射，再接受关闭事件
-        if (overlay_) { overlay_->close(); delete overlay_; overlay_ = nullptr; }
-        mapper_->stop();
-        gamepad_->stop();
-        event->accept();
-        return;
-    }
-    QMessageBox dialog(this);
-    dialog.setWindowTitle(tr("退出确认"));
-    dialog.setText(tr("确定要退出程序吗？"));
-    QPushButton* exitBtn = dialog.addButton(tr("退出"), QMessageBox::AcceptRole);
-    dialog.addButton(tr("最小化到托盘"), QMessageBox::RejectRole);
-    dialog.exec();
-    if (dialog.clickedButton() == exitBtn) {
-        // 退出：先关闭 overlay 和映射，再接受关闭事件
-        if (overlay_) { overlay_->close(); delete overlay_; overlay_ = nullptr; }
-        mapper_->stop();
-        gamepad_->stop();
-        event->accept();
-    } else {
         hide();
         event->ignore();
+        return;
+    }
+    if (overlay_) { overlay_->close(); delete overlay_; overlay_ = nullptr; }
+    mapper_->stop();
+    gamepad_->stop();
+    event->accept();
+}
+
+// ============================================================
+// changeEvent：最小化时隐藏到托盘（任务栏不显示图标）
+// ============================================================
+// 点击右上角最小化按钮后，窗口从任务栏消失，仅保留右下角托盘图标；
+// 通过托盘菜单「显示主界面」或双击托盘图标恢复。
+void MainWindow::changeEvent(QEvent* event) {
+    QMainWindow::changeEvent(event);
+    if (event->type() == QEvent::WindowStateChange && isMinimized()) {
+        // 延迟到最小化动画结束后隐藏，避免任务栏图标闪烁
+        QTimer::singleShot(0, this, [this]() { hide(); });
     }
 }
 
