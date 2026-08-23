@@ -51,7 +51,7 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
         "border: 1px solid rgba(255,255,255,130);"
         "border-radius: 6px;"));   // 初始：映射运行中（绿）
     layerLabel_ = new QLabel(tr("当前层: Common"), this);
-    layerLabel_->setFont(QFont("Microsoft YaHei", 13, QFont::Bold));
+    layerLabel_->setFont(QFont("Microsoft YaHei", 11, QFont::Bold));
     layerLabel_->setStyleSheet("color: #e8eaee;");
     auto* headerRow = new QHBoxLayout;
     headerRow->setSpacing(7);
@@ -68,13 +68,13 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
 
     // 按下的手柄按键
     buttonsLabel_ = new QLabel(tr("按下按键: 无"), this);
-    buttonsLabel_->setFont(QFont("Microsoft YaHei", 11, QFont::Bold));
+    buttonsLabel_->setFont(QFont("Microsoft YaHei", 10, QFont::Bold));
     buttonsLabel_->setStyleSheet("color: #d9a25e;");
     layout_->addWidget(buttonsLabel_);
 
     // 展开时的映射列表（默认隐藏）
     mappingsLabel_ = new QLabel(this);
-    mappingsLabel_->setFont(QFont("Microsoft YaHei", 10));
+    mappingsLabel_->setFont(QFont("Microsoft YaHei", 9));
     mappingsLabel_->setStyleSheet("color: #c9cdd4;");
     mappingsLabel_->setTextFormat(Qt::RichText);
     mappingsLabel_->setWordWrap(true);
