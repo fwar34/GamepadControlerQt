@@ -45,6 +45,12 @@ public:
     // 避免 toggle 保持的鼠标键在断开后卡死。
     void releaseAllInputs();
 
+signals:
+    // MouseToggle 锁存状态变化（供 UI 提示）：
+    // button=触发手柄键，mb=被锁存的鼠标键，active=true 刚锁存按住 / false 已解除。
+    // 可能从手柄线程或主线程发出（AutoConnection 自动转队列到 UI 线程）。
+    void mouseToggleChanged(ControllerButton button, MouseButton mb, bool active);
+
 private slots:
     // 按钮命中映射：按下执行动作并记录注入状态；松开精确释放
     void onButtonMapped(ControllerButton button, bool isPressed, const KeyMapping& mapping);

@@ -64,6 +64,11 @@ void KeyboardMouseMapper::releaseAllInputs() {
     QMutexLocker locker(&stateMutex_);
     // 释放所有物理注入（含 MouseToggle 保持按下的鼠标键）
     injector_->releaseAll();
+    // 先复制再清空，逐个通知 UI 解除锁存提示（避免遍历容器时发送信号）
+    const QHash<ControllerButton, MouseButton> toggled = toggledMouseButtons_;
+    toggledMouseButtons_.clear();
+    for (auto it = toggled.cbegin(); it != toggled.cend(); ++it)
+        emit mouseToggleChanged(it.key(), it.value(), false);
     pressedMainKeys_.clear();
     pressedSubKeys_.clear();
     pressedMouseButtons_.clear();
@@ -184,9 +189,11 @@ void KeyboardMouseMapper::handleMouseToggle(ControllerButton button, MouseButton
     if (toggledMouseButtons_.contains(button)) {
         injector_->sendMouseUp(mb);
         toggledMouseButtons_.remove(button);
+        emit mouseToggleChanged(button, mb, false);
     } else {
         injector_->sendMouseDown(mb);
         toggledMouseButtons_.insert(button, mb);
+        emit mouseToggleChanged(button, mb, true);
     }
 }
 

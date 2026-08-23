@@ -2,6 +2,7 @@
 
 #include <QWidget>
 #include <QSet>
+#include <QHash>
 #include <QPoint>
 
 #include "../core/InputTypes.h"
@@ -47,6 +48,8 @@ public:
     void toggleExpanded();
     // 刷新展开状态下的映射列表（供外部信号连接）
     void refreshMappingsIfExpanded();
+    // 更新 MouseToggle 锁存状态提示（active=true 锁存 / false 解除）
+    void setMouseToggleState(ControllerButton button, MouseButton mb, bool active);
 
 protected:
     void mousePressEvent(QMouseEvent* event) override;
@@ -66,12 +69,15 @@ private:
     void refreshMappings();
     // 将当前 scale_ 应用到各控件并重排窗口
     void applyCurrentScale();
+    // 根据 toggledButtons_ 刷新锁存提示文本与可见性
+    void refreshToggleLabel();
 
     SteamInput* steamInput_ = nullptr;
     QWidget* mainWindow_ = nullptr;
 
     QLabel* layerLabel_ = nullptr;
     QLabel* buttonsLabel_ = nullptr;
+    QLabel* toggleLabel_ = nullptr;    // MouseToggle 锁存提示（橙色警示，无锁存时隐藏）
     QLabel* mappingsLabel_ = nullptr;    // 展开时显示映射列表
     QWidget* statusDot_ = nullptr;       // 顶部映射状态圆点（自绘实心圆，绿=运行/灰=停止）
     QVBoxLayout* layout_ = nullptr;
@@ -86,4 +92,5 @@ private:
     QFont baseButtonsFont_;
     QFont baseMappingsFont_;
     QString currentDotColor_ = QStringLiteral("#2e7d32");   // 当前圆点颜色（供缩放重建样式）
+    QHash<ControllerButton, MouseButton> toggledButtons_;   // 当前锁存的鼠标键（手柄键 -> 鼠标键）
 };

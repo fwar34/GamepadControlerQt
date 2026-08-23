@@ -20,6 +20,7 @@
 #include <QFrame>
 #include <QGuiApplication>
 #include <QScreen>
+#include <QStringList>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -107,6 +108,14 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
     buttonsLabel_->setStyleSheet("color: #d9a25e;");
     layout_->addWidget(buttonsLabel_);
 
+    // MouseToggle 锁存提示（默认隐藏；有锁存时橙色高亮，提示如何解除）
+    toggleLabel_ = new QLabel(this);
+    toggleLabel_->setFont(QFont("DengXian", 10, QFont::Bold));
+    toggleLabel_->setStyleSheet("color: #ffb54d;");
+    toggleLabel_->setWordWrap(true);   // 多个锁存键时超宽自动换行兜底
+    toggleLabel_->hide();
+    layout_->addWidget(toggleLabel_);
+
     // 展开时的映射列表（默认隐藏）
     mappingsLabel_ = new QLabel(this);
     baseMappingsFont_ = QFont("Microsoft YaHei", 9);
@@ -146,7 +155,10 @@ void OverlayWidget::paintEvent(QPaintEvent*) {
     grad.setColorAt(0.0, QColor(52, 54, 58));
     grad.setColorAt(1.0, QColor(24, 25, 28));
     p.fillPath(path, grad);
-    p.setPen(QPen(QColor(255, 255, 255, 120), 1));
+    // 有 MouseToggle 锁存时边框高亮橙色（提示有按键被锁存），否则保持原白边
+    const bool hasToggle = !toggledButtons_.isEmpty();
+    p.setPen(QPen(hasToggle ? QColor(255, 181, 77, 235) : QColor(255, 255, 255, 120),
+                  hasToggle ? 2 : 1));
     p.drawPath(path);
 }
 
@@ -174,6 +186,35 @@ void OverlayWidget::setHeldButtons(const QSet<ControllerButton>& buttons) {
         buttonsLabel_->setText(tr("按下按键: %1").arg(buttonNames.join(", ")));
     }
     adjustSize();
+}
+
+// ============================================================
+// setMouseToggleState / refreshToggleLabel：MouseToggle 锁存提示
+// ============================================================
+// 手柄键被映射为 mouseToggle 时，按一次会锁存鼠标键（松开不释放）。
+// 为避免玩家误按后困惑（鼠标键一直按住），在悬浮窗用橙色高亮显示
+// 当前锁存的「手柄键→鼠标键」，并提示再按一次解除。
+void OverlayWidget::setMouseToggleState(ControllerButton button, MouseButton mb, bool active) {
+    if (active)
+        toggledButtons_.insert(button, mb);
+    else
+        toggledButtons_.remove(button);
+    refreshToggleLabel();
+}
+
+void OverlayWidget::refreshToggleLabel() {
+    if (toggledButtons_.isEmpty()) {
+        toggleLabel_->hide();
+    } else {
+        QStringList parts;
+        for (auto it = toggledButtons_.cbegin(); it != toggledButtons_.cend(); ++it)
+            parts << tr("%1→%2").arg(controllerButtonDisplayName(it.key()),
+                                     mouseButtonDisplayName(it.value()));
+        toggleLabel_->setText(tr("⚠ 已锁存：%1\n（再按一次解除）").arg(parts.join("，")));
+        toggleLabel_->show();
+    }
+    adjustSize();
+    update();   // 边框颜色跟随锁存状态刷新
 }
 
 // ============================================================

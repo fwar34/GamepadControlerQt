@@ -45,6 +45,7 @@
 #include <QProcess>
 #include <QSlider>
 #include <QStatusBar>
+#include <QStyle>
 #include <QSystemTrayIcon>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -79,6 +80,26 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     connect(input_, &SteamInput::layerChanged, overlay_, &OverlayWidget::setLayerName);
     // 层变化 -> 主界面刷新当前层标签与激活层按钮颜色
     connect(input_, &SteamInput::layerChanged, this, &MainWindow::onLayerChanged);
+    // MouseToggle 锁存状态 -> 悬浮窗橙色提示（含再按一次解除的方法）
+    connect(mapper_, &KeyboardMouseMapper::mouseToggleChanged,
+            overlay_, &OverlayWidget::setMouseToggleState);
+    // MouseToggle 锁存状态 -> 主窗口内容区边框变橙提示（锁存/解除时刷新）
+    connect(mapper_, &KeyboardMouseMapper::mouseToggleChanged, this,
+            [this](ControllerButton button, MouseButton mb, bool active) {
+        if (active)
+            toggledButtons_.insert(button, mb);
+        else
+            toggledButtons_.remove(button);
+        const bool hasToggle = !toggledButtons_.isEmpty();
+        if (hasToggle == toggleActive_)
+            return;
+        toggleActive_ = hasToggle;
+        auto* central = centralWidget();
+        central->setProperty("toggleActive", toggleActive_);
+        central->style()->unpolish(central);
+        central->style()->polish(central);
+        central->update();
+    });
     // 配置变更 -> 悬浮窗刷新映射列表
     connect(input_, &SteamInput::profileChanged, overlay_, &OverlayWidget::refreshMappingsIfExpanded);
     // 按键映射事件 -> 悬浮窗更新按下按键（过滤层切换触发按键）
@@ -322,6 +343,11 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     setStyleSheet(R"(
         #centralRoot {
             background-color: #2b2d31;
+            border: 2px solid transparent;
+        }
+        /* MouseToggle 锁存时主窗口内容区边框变橙色（提示有按键被锁存） */
+        #centralRoot[toggleActive="true"] {
+            border: 2px solid #ffb54d;
         }
         QWidget {
             color: #d5d9df;

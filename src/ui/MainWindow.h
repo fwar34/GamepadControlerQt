@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QMainWindow>
+#include <QHash>
 
 #include "OverlayWidget.h"
 
@@ -69,6 +70,9 @@ private:
     QLabel* activeLayerLabel_ = nullptr;
     QVector<QPushButton*> layerButtons_;
     QPushButton* startStopButton_ = nullptr;
+    // MouseToggle 锁存集合（手柄键 -> 鼠标键），用于主窗口边框变色提示
+    QHash<ControllerButton, MouseButton> toggledButtons_;
+    bool toggleActive_ = false;   // 是否有 MouseToggle 处于锁存（边框是否高亮）
 
     QSlider* deadzoneSlider_ = nullptr;
     QSlider* sensitivitySlider_ = nullptr;
