@@ -72,6 +72,8 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     const GlobalSettings& gs0 = input_->profile.globalSettings;
     if (gs0.overlayX >= 0 && gs0.overlayY >= 0)
         overlay_->move(gs0.overlayX, gs0.overlayY);
+    // 恢复上次保存的悬浮窗缩放大小
+    overlay_->applyScale(gs0.overlayScale);
     overlay_->show();
     // 层变化 -> 悬浮窗更新层名
     connect(input_, &SteamInput::layerChanged, overlay_, &OverlayWidget::setLayerName);
@@ -679,6 +681,7 @@ void MainWindow::exitApplication() {
         const QPoint pos = overlay_->pos();
         input_->profile.globalSettings.overlayX = pos.x();
         input_->profile.globalSettings.overlayY = pos.y();
+        input_->profile.globalSettings.overlayScale = overlay_->scale();
     }
     QApplication::quit();
 }
@@ -704,6 +707,7 @@ MainWindow::~MainWindow() {
         const QPoint pos = overlay_->pos();
         input_->profile.globalSettings.overlayX = pos.x();
         input_->profile.globalSettings.overlayY = pos.y();
+        input_->profile.globalSettings.overlayScale = overlay_->scale();
         overlay_->close();
         delete overlay_;
     }

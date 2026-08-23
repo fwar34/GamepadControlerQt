@@ -256,6 +256,7 @@ QByteArray toJson(const ControllerProfile& profile, int indent) {
     gs.insert(QStringLiteral("invertLookY"), profile.globalSettings.invertLookY);
     gs.insert(QStringLiteral("overlayX"), profile.globalSettings.overlayX);
     gs.insert(QStringLiteral("overlayY"), profile.globalSettings.overlayY);
+    gs.insert(QStringLiteral("overlayScale"), profile.globalSettings.overlayScale);
     gs.insert(QStringLiteral("releaseOnForegroundChange"), profile.globalSettings.releaseOnForegroundChange);
     gs.insert(QStringLiteral("confirmOnClose"), profile.globalSettings.confirmOnClose);
     root.insert(QStringLiteral("globalSettings"), gs);
@@ -301,6 +302,7 @@ ControllerProfile fromJson(const QByteArray& json) {
         s.invertLookY = gs.value(QStringLiteral("invertLookY")).toBool(false);
         s.overlayX = gs.value(QStringLiteral("overlayX")).toInt(-1);
         s.overlayY = gs.value(QStringLiteral("overlayY")).toInt(-1);
+        s.overlayScale = gs.value(QStringLiteral("overlayScale")).toDouble(1.0);
         s.releaseOnForegroundChange = gs.value(QStringLiteral("releaseOnForegroundChange")).toBool(true);
         s.confirmOnClose = gs.value(QStringLiteral("confirmOnClose")).toBool(true);
         profile.globalSettings = s;

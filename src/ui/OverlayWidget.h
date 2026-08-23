@@ -8,6 +8,7 @@
 
 class QVBoxLayout;
 class QLabel;
+class QWheelEvent;
 class SteamInput;
 
 // =====================================================================
@@ -52,10 +53,19 @@ protected:
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
     void paintEvent(QPaintEvent* event) override;
+    void wheelEvent(QWheelEvent* event) override;
+
+public:
+    // 应用滚轮缩放系数（含启动时恢复上次大小）
+    void applyScale(qreal scale);
+    // 当前缩放系数
+    qreal scale() const { return scale_; }
 
 private:
     // 刷新展开状态下的映射列表
     void refreshMappings();
+    // 将当前 scale_ 应用到各控件并重排窗口
+    void applyCurrentScale();
 
     SteamInput* steamInput_ = nullptr;
     QWidget* mainWindow_ = nullptr;
@@ -71,4 +81,9 @@ private:
     QPoint pressPos_;                    // 按下时的全局坐标（用于判断是否真正点击）
     bool expanded_ = false;              // 是否展开
     QString currentLayerName_;           // 当前层名（用于刷新映射列表）
+    qreal scale_ = 1.0;                  // 滚轮缩放系数（0.5 ~ 2.0）
+    QFont baseLayerFont_;
+    QFont baseButtonsFont_;
+    QFont baseMappingsFont_;
+    QString currentDotColor_ = QStringLiteral("#2e7d32");   // 当前圆点颜色（供缩放重建样式）
 };

@@ -24,6 +24,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
+#include <QWheelEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPaintEvent>
@@ -50,7 +51,8 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
         "background-color: #2e7d32;"
         "border-radius: 6px;"));   // 初始：映射运行中（绿）
     layerLabel_ = new QLabel(tr("当前层: Common"), this);
-    layerLabel_->setFont(QFont("DengXian", 11, QFont::Bold));   // 粗体用等线，避免雅黑合成粗体发虚
+    baseLayerFont_ = QFont("DengXian", 11, QFont::Bold);   // 粗体用等线，避免雅黑合成粗体发虚
+    layerLabel_->setFont(baseLayerFont_);
     layerLabel_->setStyleSheet("color: #e8eaee;");
     auto* headerRow = new QHBoxLayout;
     headerRow->setSpacing(7);
@@ -68,7 +70,8 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
     // 按下的手柄按键
     buttonsLabel_ = new QLabel(tr("按下按键: 无"), this);
     // 换用雅黑 UI + 非粗体：雅黑粗体字形下缘超出度量导致「无」字截断
-    buttonsLabel_->setFont(QFont("Microsoft YaHei UI", 10, QFont::Normal));
+    baseButtonsFont_ = QFont("Microsoft YaHei UI", 10, QFont::Normal);
+    buttonsLabel_->setFont(baseButtonsFont_);
     // 强制 label 高度大于字体行高，避免字形下缘被裁切
     buttonsLabel_->setMinimumHeight(buttonsLabel_->fontMetrics().height() + 4);
     buttonsLabel_->setStyleSheet("color: #d9a25e;");
@@ -76,7 +79,8 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
 
     // 展开时的映射列表（默认隐藏）
     mappingsLabel_ = new QLabel(this);
-    mappingsLabel_->setFont(QFont("Microsoft YaHei", 9));
+    baseMappingsFont_ = QFont("Microsoft YaHei", 9);
+    mappingsLabel_->setFont(baseMappingsFont_);
     mappingsLabel_->setStyleSheet("color: #c9cdd4;");
     mappingsLabel_->setTextFormat(Qt::RichText);
     mappingsLabel_->setWordWrap(true);
@@ -148,12 +152,13 @@ void OverlayWidget::setHeldButtons(const QSet<ControllerButton>& buttons) {
 // 与主窗口启停按钮同色：手柄未连接时红色，连接+运行绿色，连接+停止灰色。
 void OverlayWidget::setMappingState(bool connected, bool mappingActive) {
     if (!statusDot_) return;
-    const QString color = !connected ? QStringLiteral("#c62828")
-                                     : (mappingActive ? QStringLiteral("#2e7d32")
-                                                      : QStringLiteral("#9e9e9e"));
+    currentDotColor_ = !connected ? QStringLiteral("#c62828")
+                                  : (mappingActive ? QStringLiteral("#2e7d32")
+                                                   : QStringLiteral("#9e9e9e"));
+    const int dot = qRound(12 * scale_);
     statusDot_->setStyleSheet(QStringLiteral(
         "background-color: %1;"
-        "border-radius: 6px;").arg(color));
+        "border-radius: %2px;").arg(currentDotColor_, QString::number(qRound(dot / 2.0))));
 }
 
 // ============================================================
@@ -277,4 +282,51 @@ void OverlayWidget::mouseReleaseEvent(QMouseEvent* event) {
         dragMoved_ = false;
         event->accept();
     }
+}
+
+// ============================================================
+// 滚轮缩放悬浮窗大小
+// ============================================================
+// 向上滚动放大、向下滚动缩小，缩放系数限制在 [0.5, 2.0]。
+// 字体、状态圆点随缩放比例一起调整，窗口由 adjustSize 自动重排。
+void OverlayWidget::wheelEvent(QWheelEvent* event) {
+    const int delta = event->angleDelta().y();
+    if (delta != 0) {
+        const qreal step = 0.1;
+        scale_ += (delta > 0 ? step : -step);
+        scale_ = qBound(0.5, scale_, 2.0);
+        applyCurrentScale();
+    }
+    event->accept();
+}
+
+// ============================================================
+// applyScale：应用外部传入的缩放系数（启动恢复上次大小）
+// ============================================================
+void OverlayWidget::applyScale(qreal scale) {
+    scale_ = qBound(0.5, scale, 2.0);
+    applyCurrentScale();
+}
+
+// ============================================================
+// applyCurrentScale：把当前 scale_ 应用到各控件并重排窗口
+// ============================================================
+void OverlayWidget::applyCurrentScale() {
+    const auto scaleFont = [this](const QFont& base) {
+        QFont f = base;
+        f.setPointSizeF(qMax(1.0, base.pointSizeF() * scale_));
+        return f;
+    };
+    layerLabel_->setFont(scaleFont(baseLayerFont_));
+    buttonsLabel_->setFont(scaleFont(baseButtonsFont_));
+    mappingsLabel_->setFont(scaleFont(baseMappingsFont_));
+    // 更新「按下按键」最小高度，防止缩放后字形下缘被裁切
+    buttonsLabel_->setMinimumHeight(buttonsLabel_->fontMetrics().height() + 4);
+    // 状态圆点随缩放调整尺寸与圆角
+    const int dot = qRound(12 * scale_);
+    statusDot_->setFixedSize(dot, dot);
+    statusDot_->setStyleSheet(QStringLiteral(
+        "background-color: %1;"
+        "border-radius: %2px;").arg(currentDotColor_, QString::number(qRound(dot / 2.0))));
+    adjustSize();
 }
