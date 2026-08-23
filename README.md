@@ -156,7 +156,7 @@ XInputGamepadSource ──buttonChanged/stickChanged──> SteamInput
 | `commonLayer` / `layers` | 层对象；`id` 唯一标识（运行时定位用，重命名不影响），`name` 显示名可修改 |
 | `triggerButton` | 仅 UI 展示用，不参与运行时层切换 |
 | `buttonMappings` | 键名 -> 映射；键名见「手柄按键名」 |
-| `action.type` | `keyboard` / `mouse` / `mouseToggle` / `switchLayer` / `mouseMove` / `lookAround` |
+| `action.type` | `keyboard` / `mouse` / `mouseToggle` / `switchLayer` / `mouseMove` / `lookAround` / `toggleMapping` / `toggleOnScreenKeyboard` / `toggleOverlay` |
 | `action.keyCode` | Android KeyCode（如空格=62、W=51），运行时转为 Windows VK |
 | `action.button` | 鼠标键大写名：`LEFT`/`RIGHT`/`MIDDLE`/`FORWARD`/`BACK` |
 | `subCommands` | 子命令 Android KeyCode 数组（最多 3 个），组合键用 |
@@ -171,7 +171,7 @@ XInputGamepadSource ──buttonChanged/stickChanged──> SteamInput
 
 1. 启动程序，状态栏显示手柄连接状态；未连接时插入手柄即可自动识别。
 2. 点击 **开始映射** 启用键鼠注入（默认已启动）。
-3. 按住层切换按键（默认：DPAD 上/下/左/右 → Layer1-4，LB/RB → Layer5/6，L3 → Layer7，触摸板 → Layer8，LT/RT → Layer9/10）激活对应操作层，松开回到公共层。
+3. 层切换由「切换层」动作驱动：在公共层（或其他层）为某手柄按键设置「切换层」动作，按住即临时激活目标操作层、松开回到公共层。默认配置不预设层切换映射，需自行配置。
 4. 点击层按钮可打开该层的按键映射编辑对话框；点击「编辑公共层…」编辑公共层映射。
 5. 全局设置滑块实时生效（死区、视角灵敏度、平滑、加速度）。
 6. 保存配置后写入 `steamlike_config.json`；重置默认恢复 WoW 预设。

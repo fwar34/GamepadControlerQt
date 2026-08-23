@@ -61,11 +61,11 @@ namespace AndroidKey {
 // 各按键来源（XInput）：
 //  - A/B/X/Y、LEFT/RIGHT_SHOULDER(LB/RB)、MENU(START)、OPTIONS(BACK)
 //  - LEFT/RIGHT_TRIGGER_CLICK：扳机键（LT/RT），XInput 中为 0-255 模拟值，
-//    阈值 >=128 视为按下；与操作层默认映射对应
+//    阈值 >=128 视为按下
 //  - LEFT/RIGHT_STICK_CLICK：摇杆按下（L3/R3）
 //  - GUIDE：Xbox 中央键（XInput 需通过 XInputGetKeystroke 单独读取，当前未用）
 //  - DPAD_*：方向键
-//  - TOUCHPAD_CLICK：触摸板点击（XInput 无对应，默认映射 Layer8）
+//  - TOUCHPAD_CLICK：触摸板点击（XInput 无对应物理位，保留枚举以兼容安卓配置）
 // ---------------------------------------------------------------------
 enum class ControllerButton {
     A, B, X, Y,
