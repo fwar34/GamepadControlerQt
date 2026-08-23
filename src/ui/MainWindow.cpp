@@ -65,6 +65,7 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     overlay_ = new OverlayWidget(nullptr);
     overlay_->setSteamInput(input_);
     overlay_->setMainWindow(this);
+    overlay_->setMappingActive(true);   // 初始映射已启动（圆点绿色）
     // 恢复上次保存的悬浮窗位置（-1 表示未保存过，使用默认位置）
     const GlobalSettings& gs0 = input_->profile.globalSettings;
     if (gs0.overlayX >= 0 && gs0.overlayY >= 0)
@@ -407,6 +408,8 @@ void MainWindow::onToggleStartStop() {
 // 映射运行中：绿底白字「停止映射」；已停止：灰底深字「启动映射」。
 void MainWindow::applyStartStopState(bool mappingActive) {
     if (!startStopButton_) return;
+    if (overlay_)
+        overlay_->setMappingActive(mappingActive);   // 悬浮窗圆点同步状态
     if (mappingActive) {
         startStopButton_->setText(tr("停止映射"));
         startStopButton_->setStyleSheet(

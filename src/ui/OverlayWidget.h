@@ -40,6 +40,8 @@ public:
     void setLayerName(const QString& name);
     // 设置当前按下的手柄按键列表（会按层过滤触发按键）
     void setHeldButtons(const QSet<ControllerButton>& buttons);
+    // 同步映射运行状态（true=运行中，圆点变绿；false=已停止，变灰）
+    void setMappingActive(bool mappingActive);
     // 切换展开/收起状态（由手柄 ToggleOverlay 动作触发）
     void toggleExpanded();
     // 刷新展开状态下的映射列表（供外部信号连接）
@@ -60,6 +62,7 @@ private:
     QLabel* layerLabel_ = nullptr;
     QLabel* buttonsLabel_ = nullptr;
     QLabel* mappingsLabel_ = nullptr;    // 展开时显示映射列表
+    QLabel* statusDot_ = nullptr;        // 顶部映射状态圆点（绿=运行/灰=停止）
     QVBoxLayout* layout_ = nullptr;
     bool dragging_ = false;
     bool dragMoved_ = false;             // 拖拽过程中是否实际移动过

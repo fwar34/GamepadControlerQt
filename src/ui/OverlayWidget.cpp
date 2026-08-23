@@ -20,6 +20,7 @@
 #include <QGuiApplication>
 #include <QScreen>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
 
@@ -34,11 +35,20 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
     layout_->setContentsMargins(10, 8, 10, 8);
     layout_->setSpacing(4);
 
-    // 当前层名称
+    // 顶部行：映射状态圆点 + 当前层名称
+    statusDot_ = new QLabel(this);
+    statusDot_->setFixedSize(12, 12);
+    statusDot_->setStyleSheet(QStringLiteral(
+        "background-color: #2e7d32; border-radius: 6px;"));   // 初始：映射运行中（绿）
     layerLabel_ = new QLabel(tr("当前层: Common"), this);
     layerLabel_->setFont(QFont("Microsoft YaHei", 12, QFont::Bold));
     layerLabel_->setStyleSheet("color: #ffffff;");
-    layout_->addWidget(layerLabel_);
+    auto* headerRow = new QHBoxLayout;
+    headerRow->setSpacing(6);
+    headerRow->addWidget(statusDot_);
+    headerRow->addWidget(layerLabel_);
+    headerRow->addStretch();
+    layout_->addLayout(headerRow);
 
     // 按下的手柄按键
     buttonsLabel_ = new QLabel(tr("按下按键: 无"), this);
@@ -92,6 +102,18 @@ void OverlayWidget::setHeldButtons(const QSet<ControllerButton>& buttons) {
         buttonsLabel_->setText(tr("按下按键: %1").arg(buttonNames.join(", ")));
     }
     adjustSize();
+}
+
+// ============================================================
+// setMappingActive：同步映射运行状态（顶部圆点颜色）
+// ============================================================
+// 与主窗口启停按钮同色：运行中绿色，已停止灰色。
+void OverlayWidget::setMappingActive(bool mappingActive) {
+    if (!statusDot_) return;
+    const QString color = mappingActive ? QStringLiteral("#2e7d32")
+                                        : QStringLiteral("#9e9e9e");
+    statusDot_->setStyleSheet(QStringLiteral(
+        "background-color: %1; border-radius: 6px;").arg(color));
 }
 
 // ============================================================
