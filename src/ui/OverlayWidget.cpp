@@ -67,7 +67,10 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
 
     // 按下的手柄按键
     buttonsLabel_ = new QLabel(tr("按下按键: 无"), this);
-    buttonsLabel_->setFont(QFont("Microsoft YaHei", 10, QFont::Bold));
+    // 换用雅黑 UI + 非粗体：雅黑粗体字形下缘超出度量导致「无」字截断
+    buttonsLabel_->setFont(QFont("Microsoft YaHei UI", 10, QFont::Normal));
+    // 强制 label 高度大于字体行高，避免字形下缘被裁切
+    buttonsLabel_->setMinimumHeight(buttonsLabel_->fontMetrics().height() + 4);
     buttonsLabel_->setStyleSheet("color: #d9a25e;");
     layout_->addWidget(buttonsLabel_);
 
