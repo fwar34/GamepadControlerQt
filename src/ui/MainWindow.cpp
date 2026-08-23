@@ -3,7 +3,7 @@
 // 主窗口：状态栏 + 层切换/编辑 + 全局设置 + 悬浮窗联动
 // ------------------------------------------------------------
 // 主窗口是用户操作入口，负责：
-//   - 展示/切换/编辑操作层（点击按钮激活层，右键弹出编辑菜单）
+//   - 展示/编辑操作层（点击按钮打开对应层的编辑对话框）
 //   - 调整全局设置（死区/灵敏度/平滑/加速）并实时写回引擎
 //   - 保存/重置配置
 //   - 创建悬浮信息窗（OverlayWidget）并驱动其显示层名与按下按键
@@ -21,6 +21,7 @@
 
 #include "OverlayWidget.h"
 #include "LayerEditDialog.h"
+#include "HelpDialog.h"
 #include "DarkTitleBar.h"
 
 #include "../core/ConfigManager.h"
@@ -169,12 +170,16 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     activeLayerLabel_ = new QLabel(tr("当前层：Common"), this);
     topBar->addWidget(activeLayerLabel_);
     topBar->addStretch(1);
+
+    auto* helpButton = new QPushButton(tr("使用说明"), this);
+    connect(helpButton, &QPushButton::clicked, this, &MainWindow::onShowHelp);
+    topBar->addWidget(helpButton);
     root->addLayout(topBar);
 
     // ---- 中部：层按钮 + 设置 ----
     auto* mid = new QHBoxLayout;
 
-    // 层切换区：每个操作层一个可点击按钮（点击激活/取消，右键编辑）
+    // 层编辑区：每个操作层一个按钮（点击打开该层的编辑对话框）
     auto* layerGroup = new QGroupBox(tr("操作层（点击编辑）"), this);
     auto* layerLayout = new QVBoxLayout(layerGroup);
 
@@ -604,6 +609,14 @@ void MainWindow::onApplySettings() {
     s.releaseOnForegroundChange = releaseOnFgCheck_->isChecked();
     s.confirmOnClose = confirmOnCloseCheck_->isChecked();
     input_->setGlobalSettings(s);
+}
+
+// ============================================================
+// onShowHelp：打开使用说明对话框
+// ============================================================
+void MainWindow::onShowHelp() {
+    HelpDialog dlg(this);
+    dlg.exec();
 }
 
 // ============================================================

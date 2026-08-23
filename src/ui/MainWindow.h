@@ -21,7 +21,7 @@ class QSystemTrayIcon;
 //
 // 功能：
 //   - 顶部：启停映射按钮、手柄连接状态、当前激活层标签
-//   - 中部：2 列 x 5 行操作层按钮（点击切换 / 右键编辑该层）、
+//   - 中部：2 列 x 5 行操作层按钮（点击编辑该层）、
 //     公共层编辑入口、全局设置滑块（死区/灵敏度/平滑/加速度）
 //   - 底部：保存配置、重置默认
 //   - 右上角：悬浮层信息窗口（OverlayWidget，独立顶层窗口）
@@ -45,6 +45,7 @@ private slots:
     void onResetConfig();
     void onEditCommonLayer();
     void onApplySettings();
+    void onShowHelp();
     void onCheckForeground();
     void closeEvent(QCloseEvent* event) override;
     void changeEvent(QEvent* event) override;
