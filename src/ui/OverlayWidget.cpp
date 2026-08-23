@@ -32,6 +32,40 @@
 #include <QPen>
 #include <QColor>
 
+namespace {
+
+// ============================================================
+// StatusDotWidget —— 顶部映射状态圆点（自绘实心圆）
+// ============================================================
+// 不用 QLabel + QSS：透明无边框窗口（WA_TranslucentBackground）上，
+// 样式表的 background-color + border-radius 无法可靠裁剪圆角，
+// 圆点会渲染成方形。这里在 paintEvent 里用 QPainter 直接画椭圆，
+// 任何环境下都是标准实心圆。
+class StatusDotWidget : public QWidget {
+public:
+    explicit StatusDotWidget(QWidget* parent = nullptr) : QWidget(parent) {
+        setFixedSize(12, 12);
+    }
+    void setColor(const QColor& c) {
+        if (color_ != c) {
+            color_ = c;
+            update();
+        }
+    }
+protected:
+    void paintEvent(QPaintEvent*) override {
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setPen(Qt::NoPen);
+        p.setBrush(color_);
+        p.drawEllipse(rect());
+    }
+private:
+    QColor color_ = QColor(QStringLiteral("#2e7d32"));  // 初始：映射运行中（绿）
+};
+
+}  // namespace
+
 // ============================================================
 // 构造：搭建悬浮窗外观与初始位置
 // ============================================================
@@ -45,11 +79,7 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
     layout_->setSpacing(5);
 
     // 顶部行：映射状态圆点 + 当前层名称
-    statusDot_ = new QLabel(this);
-    statusDot_->setFixedSize(12, 12);
-    statusDot_->setStyleSheet(QStringLiteral(
-        "background-color: #2e7d32;"
-        "border-radius: 6px;"));   // 初始：映射运行中（绿）
+    statusDot_ = new StatusDotWidget(this);
     layerLabel_ = new QLabel(tr("当前层: Common"), this);
     baseLayerFont_ = QFont("DengXian", 11, QFont::Bold);   // 粗体用等线，避免雅黑合成粗体发虚
     layerLabel_->setFont(baseLayerFont_);
@@ -156,9 +186,8 @@ void OverlayWidget::setMappingState(bool connected, bool mappingActive) {
                                   : (mappingActive ? QStringLiteral("#2e7d32")
                                                    : QStringLiteral("#9e9e9e"));
     const int dot = qRound(12 * scale_);
-    statusDot_->setStyleSheet(QStringLiteral(
-        "background-color: %1;"
-        "border-radius: %2px;").arg(currentDotColor_, QString::number(qRound(dot / 2.0))));
+    statusDot_->setFixedSize(dot, dot);
+    static_cast<StatusDotWidget*>(statusDot_)->setColor(QColor(currentDotColor_));
 }
 
 // ============================================================
@@ -322,11 +351,9 @@ void OverlayWidget::applyCurrentScale() {
     mappingsLabel_->setFont(scaleFont(baseMappingsFont_));
     // 更新「按下按键」最小高度，防止缩放后字形下缘被裁切
     buttonsLabel_->setMinimumHeight(buttonsLabel_->fontMetrics().height() + 4);
-    // 状态圆点随缩放调整尺寸与圆角
+    // 状态圆点随缩放调整尺寸（自绘控件内部按当前尺寸画圆）
     const int dot = qRound(12 * scale_);
     statusDot_->setFixedSize(dot, dot);
-    statusDot_->setStyleSheet(QStringLiteral(
-        "background-color: %1;"
-        "border-radius: %2px;").arg(currentDotColor_, QString::number(qRound(dot / 2.0))));
+    static_cast<StatusDotWidget*>(statusDot_)->setColor(QColor(currentDotColor_));
     adjustSize();
 }

@@ -73,7 +73,7 @@ private:
     QLabel* layerLabel_ = nullptr;
     QLabel* buttonsLabel_ = nullptr;
     QLabel* mappingsLabel_ = nullptr;    // 展开时显示映射列表
-    QLabel* statusDot_ = nullptr;        // 顶部映射状态圆点（绿=运行/灰=停止）
+    QWidget* statusDot_ = nullptr;       // 顶部映射状态圆点（自绘实心圆，绿=运行/灰=停止）
     QVBoxLayout* layout_ = nullptr;
     bool dragging_ = false;
     bool dragMoved_ = false;             // 拖拽过程中是否实际移动过
