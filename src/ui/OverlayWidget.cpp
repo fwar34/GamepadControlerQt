@@ -48,7 +48,6 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
     statusDot_->setFixedSize(12, 12);
     statusDot_->setStyleSheet(QStringLiteral(
         "background-color: #2e7d32;"
-        "border: 1px solid rgba(255,255,255,130);"
         "border-radius: 6px;"));   // 初始：映射运行中（绿）
     layerLabel_ = new QLabel(tr("当前层: Common"), this);
     layerLabel_->setFont(QFont("Microsoft YaHei", 11, QFont::Bold));
@@ -150,7 +149,7 @@ void OverlayWidget::setMappingState(bool connected, bool mappingActive) {
                                      : (mappingActive ? QStringLiteral("#2e7d32")
                                                       : QStringLiteral("#9e9e9e"));
     statusDot_->setStyleSheet(QStringLiteral(
-        "background-color: %1; border: 1px solid rgba(255,255,255,130);"
+        "background-color: %1;"
         "border-radius: 6px;").arg(color));
 }
 
