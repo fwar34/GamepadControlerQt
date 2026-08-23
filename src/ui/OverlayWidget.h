@@ -92,5 +92,6 @@ private:
     QFont baseButtonsFont_;
     QFont baseMappingsFont_;
     QString currentDotColor_ = QStringLiteral("#2e7d32");   // 当前圆点颜色（供缩放重建样式）
+    QSet<ControllerButton> heldButtons_;                    // 当前按下的手柄按键（映射列表高亮用）
     QHash<ControllerButton, MouseButton> toggledButtons_;   // 当前锁存的鼠标键（手柄键 -> 鼠标键）
 };

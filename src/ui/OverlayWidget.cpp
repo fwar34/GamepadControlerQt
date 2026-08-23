@@ -176,7 +176,10 @@ void OverlayWidget::setLayerName(const QString& name) {
 // ============================================================
 // setHeldButtons：更新显示的按下按键
 // ============================================================
+// 记录当前按下的按键集合（heldButtons_，供展开映射列表高亮对应行），
+// 并更新顶部"按下按键"文本；展开状态下同步刷新映射列表里的高亮。
 void OverlayWidget::setHeldButtons(const QSet<ControllerButton>& buttons) {
+    heldButtons_ = buttons;
     if (buttons.isEmpty()) {
         buttonsLabel_->setText(tr("按下按键: 无"));
     } else {
@@ -185,6 +188,8 @@ void OverlayWidget::setHeldButtons(const QSet<ControllerButton>& buttons) {
             buttonNames.append(controllerButtonDisplayName(btn));
         buttonsLabel_->setText(tr("按下按键: %1").arg(buttonNames.join(", ")));
     }
+    if (expanded_)
+        refreshMappings();   // 同步刷新映射列表中按下按键的高亮
     adjustSize();
 }
 
@@ -284,10 +289,15 @@ void OverlayWidget::refreshMappings() {
             } else {
                 desc = m->describe();
             }
+            // 按下高亮：正在按下的按键对应行的按钮名变橙色加粗（颜色区别于
+            // 常驻青色），松开后恢复，与"按下按键"栏同源（heldButtons_）。
+            const bool held = heldButtons_.contains(btn);
             lines << QStringLiteral(
-                "<span style='color:#7fc9c4;font-weight:600;'>%1</span>"
+                "<span style='color:%1;font-weight:%2;'>%3</span>"
                 "<span style='color:#8f949d;'> → </span>"
-                "<span style='color:#c9cdd4;'>%2</span>").arg(
+                "<span style='color:#c9cdd4;'>%4</span>").arg(
+                held ? QStringLiteral("#ffb54d") : QStringLiteral("#7fc9c4"),
+                held ? QStringLiteral("bold") : QStringLiteral("600"),
                 controllerButtonDisplayName(btn), desc.toHtmlEscaped());
         }
     }
