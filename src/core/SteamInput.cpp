@@ -66,10 +66,12 @@ void SteamInput::deactivateAllLayers() {
     updateActiveLayerName();
 }
 
-// 指定层当前是否激活
-bool SteamInput::isLayerActive(const QString& name) const {
+// 指定层（按 id）当前是否激活
+// 注意：用 id 匹配（而非显示名 name），因为界面层按钮的 objectName 存的是 id，
+// 层改名后 name 变化但 id 不变，按 id 判断才能正确高亮。
+bool SteamInput::isLayerActive(const QString& id) const {
     for (const OperationLayer* layer : activeLayers_)
-        if (layer->name == name) return true;
+        if (layer->id == id) return true;
     return false;
 }
 
@@ -157,7 +159,7 @@ void SteamInput::handleButtonEvent(ControllerButton button, bool isPressed) {
                 for (OperationLayer& l : profile.layers)
                     if (l.name == mapping->action.layerName) { target = &l; break; }
             }
-            if (target && !isLayerActive(target->name)) {
+            if (target && !isLayerActive(target->id)) {
                 activateLayer(target);
                 buttonTriggeredLayers_.insert(button, target);
             }

@@ -77,6 +77,8 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     overlay_->show();
     // 层变化 -> 悬浮窗更新层名
     connect(input_, &SteamInput::layerChanged, overlay_, &OverlayWidget::setLayerName);
+    // 层变化 -> 主界面刷新当前层标签与激活层按钮颜色
+    connect(input_, &SteamInput::layerChanged, this, &MainWindow::onLayerChanged);
     // 配置变更 -> 悬浮窗刷新映射列表
     connect(input_, &SteamInput::profileChanged, overlay_, &OverlayWidget::refreshMappingsIfExpanded);
     // 按键映射事件 -> 悬浮窗更新按下按键（过滤层切换触发按键）
