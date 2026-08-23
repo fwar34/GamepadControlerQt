@@ -126,13 +126,13 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
         if (checked && !mapper_->isRunning()) {
             mapper_->start();
             gamepad_->start();
-            startStopButton_->setText(tr("停止映射"));
+            applyStartStopState(true);
             statusBar()->showMessage(tr("已启动映射"));
         } else if (!checked && mapper_->isRunning()) {
             // 只停止键鼠注入，保持手柄轮询运行：
             // 否则"切换映射"键无法被读取，停止后无法再次开启映射
             mapper_->stop();
-            startStopButton_->setText(tr("启动映射"));
+            applyStartStopState(false);
             statusBar()->showMessage(tr("已停止：释放所有按键"));
         }
     });
@@ -155,8 +155,9 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
 
     // ---- 顶部：状态 + 启停 ----
     auto* topBar = new QHBoxLayout;
-    startStopButton_ = new QPushButton(tr("停止映射"), this);
+    startStopButton_ = new QPushButton(this);
     connect(startStopButton_, &QPushButton::clicked, this, &MainWindow::onToggleStartStop);
+    applyStartStopState(true);   // 初始映射已启动
     topBar->addWidget(startStopButton_);
 
     connectionLabel_ = new QLabel(tr("手柄：未连接"), this);
@@ -390,13 +391,32 @@ void MainWindow::refreshLayerButtons() {
 void MainWindow::onToggleStartStop() {
     if (mapper_->isRunning()) {
         mapper_->stop();
-        startStopButton_->setText(tr("启动映射"));
+        applyStartStopState(false);
         statusBar()->showMessage(tr("已停止：释放所有按键"));
     } else {
         mapper_->start();
         gamepad_->start();
-        startStopButton_->setText(tr("停止映射"));
+        applyStartStopState(true);
         statusBar()->showMessage(tr("已启动映射"));
+    }
+}
+
+// ============================================================
+// applyStartStopState：同步启停按钮文字与状态色
+// ============================================================
+// 映射运行中：绿底白字「停止映射」；已停止：灰底深字「启动映射」。
+void MainWindow::applyStartStopState(bool mappingActive) {
+    if (!startStopButton_) return;
+    if (mappingActive) {
+        startStopButton_->setText(tr("停止映射"));
+        startStopButton_->setStyleSheet(
+            QStringLiteral("QPushButton { background-color: #2e7d32; color: white;"
+                           " font-weight: bold; border-radius: 3px; padding: 4px 12px; }"));
+    } else {
+        startStopButton_->setText(tr("启动映射"));
+        startStopButton_->setStyleSheet(
+            QStringLiteral("QPushButton { background-color: #9e9e9e; color: #212121;"
+                           " font-weight: bold; border-radius: 3px; padding: 4px 12px; }"));
     }
 }
 

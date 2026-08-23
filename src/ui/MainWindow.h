@@ -52,6 +52,8 @@ private:
     void refreshLayerButtons();
     // 打开指定层（id）的编辑对话框
     void editLayer(const QString& layerName);
+    // 同步启停按钮文字与状态色（mappingActive=true 映射运行中）
+    void applyStartStopState(bool mappingActive);
 
     SteamInput* input_;
     KeyboardMouseMapper* mapper_;
