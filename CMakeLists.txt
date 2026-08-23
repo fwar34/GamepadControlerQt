@@ -53,6 +53,7 @@ set(PROJECT_SOURCES
     src/ui/HelpDialog.h
     src/ui/HelpDialog.cpp
     src/ui/DarkTitleBar.h
+    src/ui/res.qrc
 )
 
 # WIN32：编译为 GUI 子系统（Windows 下不弹黑色控制台窗口）

@@ -340,6 +340,16 @@ void LayerEditDialog::buildUi() {
         QComboBox:hover {
             border-color: #7fc9c4;
         }
+        QComboBox::drop-down {
+            border: none;
+            background: transparent;
+            width: 22px;
+        }
+        QComboBox::down-arrow {
+            image: url(:/icons/down-arrow.png);
+            width: 10px;
+            height: 6px;
+        }
         QComboBox QAbstractItemView {
             background-color: #33363b;
             color: #e8eaee;
