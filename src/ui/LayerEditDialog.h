@@ -1,7 +1,9 @@
 #pragma once
 
 #include <QDialog>
+#include <QHash>
 #include <QListWidget>
+#include <QSet>
 #include <QStackedWidget>
 #include <QComboBox>
 #include <QLineEdit>
@@ -10,6 +12,7 @@
 
 class QLabel;
 class QPushButton;
+class XInputGamepadSource;
 
 // =====================================================================
 // LayerEditDialog —— 操作层编辑对话框
@@ -24,12 +27,15 @@ class QPushButton;
 //     右侧根据动作类型（actionTypeCombo_）显示不同参数面板
 //     （paramStack_：键盘键 / 鼠标键 / 目标层 / 无参数）。
 //   - loading_ 标志防止初始化时信号触发 saveFormFor 产生递归。
+//   - gamepad：用于实时显示手柄按键按下状态（对应按钮列表项高亮），
+//     便于调试映射是否正确命中。
 // =====================================================================
 class LayerEditDialog : public QDialog {
     Q_OBJECT
 public:
-    // profile：用于选择 SwitchLayer 目标层；layer：要编辑的操作层
-    explicit LayerEditDialog(ControllerProfile* profile, OperationLayer* layer, QWidget* parent = nullptr);
+    // profile：用于选择 SwitchLayer 目标层；layer：要编辑的操作层；gamepad：手柄源（实时按键高亮）
+    explicit LayerEditDialog(ControllerProfile* profile, OperationLayer* layer,
+                             XInputGamepadSource* gamepad, QWidget* parent = nullptr);
 
 private slots:
     // 将当前选中按钮的映射加载到界面
@@ -40,6 +46,8 @@ private slots:
     void updateParamPage(int typeIndex);
     // 保存当前按钮并整体写回原始层
     void accept() override;
+    // 手柄按键按下/松开 -> 左侧按钮列表对应项高亮（松开恢复）
+    void onGamepadButton(ControllerButton button, bool isPressed);
 
 private:
     ControllerProfile* profile_ = nullptr;
@@ -49,6 +57,8 @@ private:
     bool loading_ = false;  // 防止初始化期间信号递归
     QLineEdit* layerNameEdit_ = nullptr;   // 层显示名称输入框
     QListWidget* buttonList_ = nullptr;    // 左侧按钮列表
+    QHash<ControllerButton, QLabel*> buttonLabels_;  // 列表项标签（item widget，手柄按下高亮用）
+    QSet<ControllerButton> pressedButtons_;          // 当前按下的手柄键集合
     QStackedWidget* paramStack_ = nullptr; // 动作参数面板
     QComboBox* actionTypeCombo_ = nullptr; // 动作类型（含"无"）
     QComboBox* keyCombo_ = nullptr;        // 键盘键（KeyboardKey）
@@ -63,4 +73,8 @@ private:
     QString mappingDesc(const KeyMapping* m) const;
     // 按副本刷新左侧指定按钮列表项的文本（右侧改动后即时同步）
     void updateButtonListItem(ControllerButton button);
+    // 生成列表项标签样式（selected=当前选中，pressed=手柄正按下）
+    QString itemStyle(bool selected, bool pressed) const;
+    // 刷新所有列表项标签样式（选中/按下状态）
+    void refreshItemStyles();
 };

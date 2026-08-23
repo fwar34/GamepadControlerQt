@@ -630,7 +630,7 @@ void MainWindow::editLayer(const QString& layerName) {
     OperationLayer* layer = input_->profile.findLayer(layerName);
     if (!layer)
         return;
-    LayerEditDialog dlg(&input_->profile, layer, this);
+    LayerEditDialog dlg(&input_->profile, layer, gamepad_, this);
     dlg.exec();
     refreshLayerButtons();
     emit input_->profileChanged();

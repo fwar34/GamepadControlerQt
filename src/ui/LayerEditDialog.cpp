@@ -19,6 +19,8 @@
 #include "LayerEditDialog.h"
 #include "DarkTitleBar.h"
 
+#include "../gamepad/XInputGamepadSource.h"
+
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QHBoxLayout>
@@ -150,15 +152,40 @@ void setComboIndex(QComboBox* combo, const QVariant& data) {
 // 构造：初始化副本并搭建界面
 // ============================================================
 // copy_ = *layer 建立编辑副本；初始选中第一个手柄按钮并加载其配置。
-LayerEditDialog::LayerEditDialog(ControllerProfile* profile, OperationLayer* layer, QWidget* parent)
+LayerEditDialog::LayerEditDialog(ControllerProfile* profile, OperationLayer* layer,
+                                 XInputGamepadSource* gamepad, QWidget* parent)
     : QDialog(parent), profile_(profile), layer_(layer), copy_(*layer) {
     setWindowTitle(tr("编辑层 - %1").arg(layer->name));
     buildUi();
+
+    // 手柄按键实时高亮：按下 -> 左侧列表对应项变色，松开恢复。
+    // 显式 QueuedConnection：buttonChanged 从轮询线程发出，保证在 GUI 线程更新控件。
+    connect(gamepad, &XInputGamepadSource::buttonChanged,
+            this, &LayerEditDialog::onGamepadButton, Qt::QueuedConnection);
 
     // 默认选中列表第一项（A 键）并加载表单
     buttonList_->setCurrentRow(0);
     if (buttonList_->currentItem())
         loadForm();
+}
+
+// ============================================================
+// onGamepadButton：手柄按键按下/松开 -> 左侧按钮列表对应项高亮
+// ============================================================
+// 与主界面操作层激活按钮同样用青绿色（#22958c）提示，
+// 方便在编辑映射时按手柄确认「哪个键对应哪个列表项」。
+// 只维护 pressedButtons_ 集合，实际样式统一交给 refreshItemStyles()
+// 重算（QListWidget::item 的 QSS 会覆盖 setBackground，故列表项文本
+// 由 item widget（QLabel）承载，样式直接设置在标签上，可正常高亮背景）。
+// 注：本对话框为模态，手柄线程的信号经队列投递到 UI 线程处理。
+void LayerEditDialog::onGamepadButton(ControllerButton button, bool isPressed) {
+    if (!buttonList_)
+        return;
+    if (isPressed)
+        pressedButtons_.insert(button);
+    else
+        pressedButtons_.remove(button);
+    refreshItemStyles();
 }
 
 // ============================================================
@@ -205,21 +232,32 @@ void LayerEditDialog::buildUi() {
     auto* hbox = new QHBoxLayout;
 
     // ---- 左侧：手柄按键列表 ----
+    // 每个列表项用一个 QLabel 作为 item widget 承载文本与样式：
+    // 直接 setBackground 会被下方 QListWidget::item 的 QSS 覆盖，
+    // 改用 item widget 后样式设置在标签上，手柄按下时可正常高亮背景。
     buttonList_ = new QListWidget(this);
     for (const ControllerButton b : allControllerButtons()) {
-        QListWidgetItem* item = new QListWidgetItem(
+        QListWidgetItem* item = new QListWidgetItem(buttonList_);
+        item->setData(Qt::UserRole, static_cast<int>(b));
+        auto* label = new QLabel(
             QStringLiteral("%1   %2").arg(controllerButtonDisplayName(b),
                                           mappingDesc(copy_.getMapping(b))),
             buttonList_);
-        item->setData(Qt::UserRole, static_cast<int>(b));
+        label->setTextFormat(Qt::PlainText);
+        label->setStyleSheet(itemStyle(false, false));
+        item->setSizeHint(label->sizeHint());
+        buttonList_->setItemWidget(item, label);
+        buttonLabels_.insert(b, label);
     }
-    // 切换选中项：先把上一个按钮的表单存进副本，再加载新按钮
+    // 切换选中项：先把上一个按钮的表单存进副本，再加载新按钮，
+    // 最后刷新全部列表项样式（选中高亮跟随切换）
     connect(buttonList_, &QListWidget::currentItemChanged, this,
             [this](QListWidgetItem* current, QListWidgetItem* previous) {
                 if (previous)
                     saveFormFor(static_cast<ControllerButton>(previous->data(Qt::UserRole).toInt()));
                 if (current)
                     loadForm();
+                refreshItemStyles();
             });
     hbox->addWidget(buttonList_, 1);
 
@@ -323,17 +361,8 @@ void LayerEditDialog::buildUi() {
             border-radius: 6px;
             outline: none;
         }
-        QListWidget::item {
-            padding: 5px 8px;
-            border-radius: 4px;
-        }
-        QListWidget::item:selected {
-            background-color: #22958c;
-            color: #ffffff;
-        }
-        QListWidget::item:hover:!selected {
-            background-color: #3d4147;
-        }
+        /* 列表项样式由 item widget（QLabel）承载，不再在此设置 ::item 规则，
+           否则会覆盖标签背景导致手柄按下高亮失效 */
         QComboBox {
             background-color: #33363b;
             color: #e8eaee;
@@ -569,16 +598,47 @@ QString LayerEditDialog::mappingDesc(const KeyMapping* m) const {
 // updateButtonListItem：按副本刷新左侧指定按钮列表项的文本
 // ============================================================
 // 右侧表单改动写回副本后调用，保证左侧列表与右侧动作即时一致，
-// 无需等重新打开对话框才看到最新描述。
+// 无需等重新打开对话框才看到最新描述。文本直接更新到对应 item widget 标签上。
 void LayerEditDialog::updateButtonListItem(ControllerButton button) {
     if (!buttonList_) return;
-    for (int i = 0; i < buttonList_->count(); ++i) {
-        QListWidgetItem* item = buttonList_->item(i);
-        if (static_cast<ControllerButton>(item->data(Qt::UserRole).toInt()) == button) {
-            item->setText(QStringLiteral("%1   %2").arg(
-                controllerButtonDisplayName(button), mappingDesc(copy_.getMapping(button))));
-            return;
-        }
+    auto it = buttonLabels_.constFind(button);
+    if (it != buttonLabels_.cend() && it.value()) {
+        it.value()->setText(QStringLiteral("%1   %2").arg(
+            controllerButtonDisplayName(button), mappingDesc(copy_.getMapping(button))));
+    }
+}
+
+// ============================================================
+// itemStyle：生成单个列表项标签的样式
+// ============================================================
+// 高亮态（当前选中 或 手柄正按下）用与主界面操作层激活按钮一致的
+// 青绿色背景 + 白字加粗；普通态透明背景 + 浅灰文字。
+QString LayerEditDialog::itemStyle(bool selected, bool pressed) const {
+    if (selected || pressed)
+        return QStringLiteral(
+            "QLabel { background-color: #22958c; color: #ffffff; font-weight: bold;"
+            " border-radius: 4px; padding: 5px 8px; }");
+    return QStringLiteral(
+        "QLabel { background-color: transparent; color: #e8eaee;"
+        " border-radius: 4px; padding: 5px 8px; }");
+}
+
+// ============================================================
+// refreshItemStyles：按当前选中项与按下集合刷新全部列表项样式
+// ============================================================
+// 在选中切换、手柄按键按下/松开时调用，保证每个列表项背景/文字
+// 与最新状态一致（item widget 的 QSS 直接生效，不再被 QListWidget 覆盖）。
+void LayerEditDialog::refreshItemStyles() {
+    if (!buttonList_) return;
+    const int selectedId = buttonList_->currentItem()
+                               ? buttonList_->currentItem()->data(Qt::UserRole).toInt()
+                               : -1;
+    for (auto it = buttonLabels_.cbegin(); it != buttonLabels_.cend(); ++it) {
+        const ControllerButton b = it.key();
+        QLabel* label = it.value();
+        if (!label) continue;
+        label->setStyleSheet(itemStyle(static_cast<int>(b) == selectedId,
+                                       pressedButtons_.contains(b)));
     }
 }
 
