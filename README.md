@@ -93,25 +93,109 @@ build\GamepadControllerQt.exe   # 或 build-qt6\GamepadControllerQt.exe
 
 ## 架构与数据流
 
+整体是单向数据流，手柄输入经过「读取 → 映射 → 执行 → 注入」四段流水线，不存在反向依赖：
+
 ```
-XInputGamepadSource ──buttonChanged/stickChanged──> SteamInput
-        (XInputGetState, 125Hz)                      │
-                                                      │ 查询有效映射（激活层→公共层）
-                                                      ▼
-                                              KeyboardMouseMapper
-                                                      │
-                                                      ▼ SendInput
-                                              Windows 前台窗口（目标游戏）
+                        ┌───────────────────────────────────────────────┐
+                        │                主线程（GUI / 事件循环）          │
+                        │  MainWindow / LayerEditDialog / OverlayWidget   │
+                        │  ConfigManager（保存/加载）/ 托盘 / 前台监控定时器 │
+                        └───────────────────────────────────────────────┘
+                                        ▲                    │
+                           layerChanged/buttonMapped 等信号    │ 启停 / releaseAllInputs
+                           （AutoConnection 转队列到主线程）     │
+                                        │                    ▼
+┌──────────────────┐ 按钮/摇杆/连接 ┌───────────────┐ buttonMapped ┌─────────────────────┐
+│ XInputGamepadSource │────────────►│   SteamInput  │─────────────►│ KeyboardMouseMapper │
+│  独立轮询线程 125Hz  │ DirectConnection │ 映射引擎（层栈）│ DirectConnection │  键鼠执行器 + look 线程 │
+└──────────────────┘              └───────────────┘              └──────────┬──────────┘
+                                                                             │ SendInput
+                                                                             ▼
+                                                                     Windows 前台窗口（目标游戏）
 ```
 
-关键设计：
+### 框架模型（模块与职责）
 
-1. **层查询顺序**：`getEffectiveMapping` 从最后激活的操作层开始，逐层回退到公共层，返回第一个命中的映射。
-2. **层切换**：`SwitchLayer` 动作由引擎 `handleButtonEvent` 处理——按下时激活目标层并记录触发按钮，松开时停用对应层并直接返回（不触发映射）。`triggerButton` 字段仅用于 UI 展示，不参与运行时切换。
-3. **精确释放**：松开按钮时按「已注入状态」（`releaseButtonInjection`）释放，与当前层映射无关，避免长按触发键切层导致按键卡死。
-4. **注入线程模型**：`buttonMapped`/`stickMapped` 由手柄轮询线程经 `Qt::DirectConnection` 直接执行，注入不经过主线程事件队列——否则若注入的鼠标按下落在本程序自身标题栏上，Windows 会进入非客户区模态追踪循环阻塞主线程，注入的松开事件排不进队列，导致按键/鼠标卡死；DirectConnection 让手柄线程仍能发送松开事件解除模态循环。
-5. **右摇杆视角线程**：look 线程固定 8ms 节拍读取右摇杆原子量并注入鼠标移动；注入器内部互斥锁保护按键状态。手柄线程与主线程（`releaseAllInputs`）通过互斥锁串行化对注入状态容器的访问。
-6. **连接防抖**：连续 3 次轮询失败才判定手柄断开；断开时 `releaseAllInputs()` 释放全部注入（含 MouseToggle 锁存），防止鼠标卡死。
+| 模块 | 职责 | 运行线程 |
+|---|---|---|
+| `main.cpp` | 组件装配、信号接线（DirectConnection）、退出清理 | 主线程 |
+| `XInputGamepadSource` | XInputGetState 125Hz 轮询，发出按钮/摇杆/连接变化信号 | 独立轮询线程 |
+| `SteamInput` | 层栈管理、有效映射查询、输入分发、SwitchLayer 运行时处理（纯核心，无 UI 依赖） | 轮询线程（信号处理） |
+| `KeyboardMouseMapper` | 按钮/子命令组合键/WASD 移动执行；右摇杆视角（独立 look 线程） | 轮询线程 + look 线程 |
+| `WindowsInputInjector` | SendInput 注入、Android 键码 → VK/物理扫描码转换、按键状态去重 | 多线程（内部互斥） |
+| `ControllerConfig` / `ConfigManager` | JSON（version=2）序列化与配置文件读写（exe 同目录 `steamlike_config.json`） | 主线程 |
+| `MainWindow` | 主界面、层编辑入口、启停控制、全局设置、托盘、前台窗口监控 | 主线程 |
+| `LayerEditDialog` | 操作层映射编辑（「副本模式」：编辑副本，确定才写回；手柄按键实时高亮） | 主线程（模态） |
+| `OverlayWidget` | 悬浮信息窗（当前层/按下按键/展开映射列表/MouseToggle 锁存提示） | 主线程 |
+| `HelpDialog` / `DarkTitleBar` | 使用说明对话框 / 深色标题栏工具 | 主线程 |
+
+对象所有权与生命周期：
+
+- 核心对象创建于 `main()` 栈上（`SteamInput input`、`KeyboardMouseMapper mapper`、`XInputGamepadSource gamepad`），随事件循环退出统一析构。
+- `InputInjector` 由工厂 `createWindowsInputInjector()` 返回**原始指针**，调用方负责 `delete`（main.cpp 退出时释放）。
+- 注入器持有所有「当前按下」状态（键盘/鼠标键）。程序退出、手柄断开、停止映射、切换前台窗口四条路径都会走 `releaseAllInputs()` 兜底释放，防止按键卡死。
+
+关键设计规则：
+
+1. **KeyCode 一律使用 Android 常量**：配置与核心层保存 Android KeyEvent 值（空格=62、W=51…），运行时经 `androidKeyCodeToWindowsVK()` / `androidKeyCodeToWindowsScanCode()` 转换。绝不在配置/核心逻辑中使用 Windows VK 常量。
+2. **注入用扫描码模式**：`injectKey` 用 `KEYEVENTF_SCANCODE`（`wVk=0`、`wScan` 为物理扫描码），DirectInput / Raw Input / GetAsyncKeyState 都能读到。扫描码必须查表：数字键、F11/F12（0x57/0x58）、小键盘均**非连续**，按公式推算会错键（例如 F12 会算出 ScrollLock）。
+3. **层查询顺序**：`getEffectiveMapping` 从最后激活的操作层回退到公共层，返回第一个命中；公共层始终激活、优先级最低。
+4. **层切换**：`SwitchLayer` 动作由引擎 `handleButtonEvent` 处理——按下激活目标层并记录触发按钮，松开停用该层并直接返回（不触发映射）。`triggerButton` 仅 UI 展示，不参与运行时切换。
+5. **精确释放**：松开按键按「已注入状态」（`releaseButtonInjection`）释放，与当前层映射无关，防止长按切层键后按键卡死。
+6. **MouseToggle 锁存**：按住期间鼠标键保持按下（用户主动锁存），松开手柄键不改变状态，再按一次解除；断开/停止/切前台时统一释放并通知 UI。
+7. **UAC 提权**：`app.manifest` 声明 `requireAdministrator`。目标游戏若高完整性运行（如 WoW），未提权时 SendInput 会被 UIPI 静默拦截，因此必须提权运行。
+8. **WIN32 子系统**：`add_executable(... WIN32 ...)` 无控制台窗口，调试输出走 Qt debug 或日志文件。
+9. **连接防抖**：连续 3 次轮询失败才判定断开（`MAX_CONNECTION_FAILS`），避免 USB 抖动导致状态闪烁；断开时释放全部注入。
+10. **DirectConnection**：轮询线程 → SteamInput、SteamInput → Mapper 均用 `Qt::DirectConnection` 保证低延迟（原因详见线程模型）。
+
+### 线程模型
+
+程序共 3 个线程 + 1 个 GUI 定时器：
+
+| 线程 | 创建位置 | 职责 |
+|---|---|---|
+| 主线程（GUI） | 程序入口 | Qt 事件循环、全部 UI、配置读写、托盘、`onCheckForeground`（200ms 前台监控）、`releaseAllInputs` |
+| 手柄轮询线程 | `XInputGamepadSource::pollLoop`（std::thread） | 每 8ms（≈125Hz）`XInputGetState`，发出按钮/摇杆/连接变化信号 |
+| look 线程 | `KeyboardMouseMapper::lookLoop`（std::thread） | 固定 8ms 节拍，读取右摇杆原子量 → 加速度/平滑 → 注入鼠标移动 |
+
+**线程间通信（信号连接类型）**：
+
+| 信号 → 槽 | 连接类型 | 原因 |
+|---|---|---|
+| 手柄 `buttonChanged`/`stickChanged` → `SteamInput::handleButtonEvent/handleStickInput` | `DirectConnection` | 轮询线程即时处理，低延迟 |
+| 手柄 `connectedChanged` → mapper 释放全部注入 | `DirectConnection` | 断开瞬间兜底释放，防卡键 |
+| `SteamInput::buttonMapped`/`stickMapped`/`profileChanged` → mapper | `DirectConnection \| UniqueConnection` | 注入必须在轮询线程执行，绝不进主线程事件队列（见下） |
+| `SteamInput::layerChanged`/`buttonMapped` → `MainWindow`（层按钮/悬浮窗刷新） | Auto（自动转 Queued） | UI 更新必须在主线程 |
+| `KeyboardMouseMapper::mouseToggleChanged` → 悬浮窗/主窗口 | Auto（Queued） | UI 更新在主线程 |
+| 手柄 `buttonChanged` → `LayerEditDialog::onGamepadButton` | `QueuedConnection`（显式） | 模态对话框内更新列表高亮，必须在主线程 |
+
+**为什么注入必须用 DirectConnection**：
+若 `buttonMapped → mapper` 用默认 AutoConnection（接收者在主线程）会变成 QueuedConnection，所有注入都排队到主线程执行。一旦注入的鼠标按下恰好落在本程序自身标题栏上，Windows 会进入非客户区模态追踪循环阻塞主线程，后续松开事件排不进事件队列 → 鼠标卡死、UI 冻结。DirectConnection 让轮询线程直接执行注入，即使主线程被模态循环占用，轮询线程仍能发出松开事件解除循环。
+
+**数据同步**：
+
+- `KeyboardMouseMapper::stateMutex_`（QMutex）：串行化「轮询线程的 onButtonMapped/onStickMapped」与「主线程的 releaseAllInputs」，保护按下状态容器（主键/子命令/鼠标键/锁存/WASD 键）。无锁时两者并发修改状态会导致 down/up 不对称——例如注入 leftdown 后 releaseAllInputs 清空状态，松开时 up 被吞 → 鼠标键永久卡死。
+- `WindowsInputInjector::mutex_`（QMutex）：保护注入器的按键去重集合与亚像素鼠标余量；轮询线程、look 线程、主线程并发调用均安全。
+- `std::atomic`：`running_`、右摇杆最新值 `latestLookX/Y`、视角参数（灵敏度/平滑/加速度）——look 线程无锁读取。
+
+**关键时序（右摇杆视角）**：
+
+```
+轮询线程（125Hz）：stickChanged ─Direct─► SteamInput.handleStickInput ─► stickMapped ─Direct─► onStickMapped
+                                                          │
+                                                          ▼ 只写原子量 latestLookX/Y（不注入）
+look 线程（固定 8ms 节拍）：读取 latestLookX/Y ─► 幅值钳制 ─► 加速度曲线(pow) ─► EMA 平滑 ─► 位移积分(480px/s) ─► sendMouseMove
+```
+
+look 线程用 `timeBeginPeriod(1)` 提高系统计时器分辨率保证 8ms 节拍；实际处理耗时计入 dt（限 0.001~0.05s），作为位移积分的时间基准，避免节拍抖动导致视角速度不稳。
+
+**释放兜底路径**（统一调用 `releaseAllInputs`）：
+
+| 触发场景 | 调用线程 |
+|---|---|
+| 用户停止映射 / 关闭程序（`mapper.stop()`） | 主线程 |
+| 手柄断开（`connectedChanged(false)`） | 轮询线程（DirectConnection） |
+| 前台窗口切换（`onCheckForeground` 每 200ms 检测，可配 `releaseOnForegroundChange`） | 主线程 |
 
 ---
 
