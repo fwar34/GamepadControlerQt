@@ -107,9 +107,13 @@ int androidKeyCodeToWindowsScanCode(int androidKeyCode) {
         static const int sc[10] = {0x0B, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A};
         return sc[androidKeyCode - 7];
     }
-    // F1-F12: 131..142 -> 0x3B..0x44（连续）
-    if (androidKeyCode >= 131 && androidKeyCode <= 142)
+    // F1-F10: 131..140 -> 0x3B..0x44（连续）
+    // 注意：F11/F12 的物理扫描码不与 F1-F10 连续（F11=0x57, F12=0x58），
+    // 若按连续公式推算会得到 0x45(NumLock)/0x46(ScrollLock)，游戏内按键全错。
+    if (androidKeyCode >= 131 && androidKeyCode <= 140)
         return 0x3B + (androidKeyCode - 131);
+    if (androidKeyCode == AndroidKey::F11) return 0x57;
+    if (androidKeyCode == AndroidKey::F12) return 0x58;
     // 小键盘 0-9: 144..153（按数字键盘物理布局，非连续）
     if (androidKeyCode >= 144 && androidKeyCode <= 153) {
         static const int sc[10] = {0x52, 0x4F, 0x50, 0x51, 0x4B, 0x4C, 0x4D, 0x47, 0x48, 0x49};
@@ -170,14 +174,16 @@ struct MouseFlags {
     DWORD data;
 };
 
-// FORWARD/BACK 为 XButton 侧键，需通过 MOUSEEVENTF_XDOWN/XUP + mouseData 区分
+// FORWARD/BACK 为 XButton 侧键，需通过 MOUSEEVENTF_XDOWN/XUP + mouseData 区分。
+// Windows 约定：XBUTTON1=第 4 键（后退）、XBUTTON2=第 5 键（前进），
+// 注意与浏览器/游戏的"后退键/前进键"一致，不能弄反。
 MouseFlags mouseFlagsFor(MouseButton b) {
     switch (b) {
         case MouseButton::LEFT: return {MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, 0};
         case MouseButton::RIGHT: return {MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, 0};
         case MouseButton::MIDDLE: return {MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, 0};
-        case MouseButton::FORWARD: return {MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP, XBUTTON1};
-        case MouseButton::BACK: return {MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP, XBUTTON2};
+        case MouseButton::FORWARD: return {MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP, XBUTTON2};
+        case MouseButton::BACK: return {MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP, XBUTTON1};
     }
     return {0, 0, 0};
 }
