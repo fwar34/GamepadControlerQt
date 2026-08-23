@@ -440,6 +440,10 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
 #ifdef Q_OS_WIN
     enableDarkTitleBar(this);
 #endif
+
+    // 恢复上次保存的主窗口位置（-1 表示未保存过，使用默认位置）
+    if (gs0.mainWindowX >= 0 && gs0.mainWindowY >= 0)
+        move(gs0.mainWindowX, gs0.mainWindowY);
 }
 
 // ---------------------------------------------------------------
@@ -683,6 +687,10 @@ void MainWindow::exitApplication() {
         input_->profile.globalSettings.overlayY = pos.y();
         input_->profile.globalSettings.overlayScale = overlay_->scale();
     }
+    // 保存主窗口位置
+    const QPoint wpos = pos();
+    input_->profile.globalSettings.mainWindowX = wpos.x();
+    input_->profile.globalSettings.mainWindowY = wpos.y();
     QApplication::quit();
 }
 
@@ -711,5 +719,9 @@ MainWindow::~MainWindow() {
         overlay_->close();
         delete overlay_;
     }
+    // 保存主窗口位置
+    const QPoint wpos = pos();
+    input_->profile.globalSettings.mainWindowX = wpos.x();
+    input_->profile.globalSettings.mainWindowY = wpos.y();
     ConfigManager::save(input_->profile);
 }

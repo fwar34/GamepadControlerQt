@@ -95,6 +95,12 @@ void KeyboardMouseMapper::onButtonMapped(ControllerButton button, bool isPressed
         case MappedAction::Type::MouseToggle:
             handleMouseToggle(button, mapping.action.mouseButton);
             break;
+        case MappedAction::Type::WheelUp:
+            injector_->sendMouseWheel(1);   // 瞬时事件，无松开处理
+            break;
+        case MappedAction::Type::WheelDown:
+            injector_->sendMouseWheel(-1);
+            break;
         case MappedAction::Type::SwitchLayer:
         case MappedAction::Type::ToggleMapping:
         case MappedAction::Type::ToggleOnScreenKeyboard:

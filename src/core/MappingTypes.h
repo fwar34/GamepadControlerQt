@@ -35,6 +35,8 @@ struct MappedAction {
         MouseMove,              // 鼠标移动（摇杆动作，无需额外参数）
         LookAround,             // 视角控制（摇杆动作，右摇杆，独立线程节拍处理）
         MouseToggle,            // 鼠标长按锁存（按住期间保持按下，松开不改变状态）
+        WheelUp,                // 鼠标滚轮上滚（按下时向上滚动一格）
+        WheelDown,              // 鼠标滚轮下滚（按下时向下滚动一格）
         ToggleMapping,          // 切换映射启停（按下时触发）
         ToggleOnScreenKeyboard, // 切换 Windows 屏幕键盘（按下时触发）
         ToggleOverlay           // 切换悬浮窗展开/收起（按下时触发）
@@ -64,6 +66,18 @@ struct MappedAction {
         MappedAction a;
         a.type = Type::MouseToggle;
         a.mouseButton = b;
+        return a;
+    }
+    // 构造「鼠标滚轮上滚」动作
+    static MappedAction wheelUp() {
+        MappedAction a;
+        a.type = Type::WheelUp;
+        return a;
+    }
+    // 构造「鼠标滚轮下滚」动作
+    static MappedAction wheelDown() {
+        MappedAction a;
+        a.type = Type::WheelDown;
         return a;
     }
     // 构造「切换操作层」动作（target 为目标层 id，如 "Layer1"）
@@ -194,6 +208,8 @@ struct GlobalSettings {
     int overlayX = -1;               // 悬浮窗 X 坐标（-1 表示未设置，使用默认位置）
     int overlayY = -1;               // 悬浮窗 Y 坐标（-1 表示未设置，使用默认位置）
     double overlayScale = 1.0;       // 悬浮窗缩放系数（滚轮调整，0.5 ~ 2.0）
+    int mainWindowX = -1;            // 主窗口 X 坐标（-1 表示未设置，使用默认位置）
+    int mainWindowY = -1;            // 主窗口 Y 坐标（-1 表示未设置，使用默认位置）
     bool releaseOnForegroundChange = true;  // 切换前台窗口时释放所有按键
     bool confirmOnClose = true;             // 关闭时弹出确认对话框（退出/最小化）
 };

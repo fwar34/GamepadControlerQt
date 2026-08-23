@@ -31,6 +31,8 @@ namespace {
 const QString kTypeKeyboard = QStringLiteral("keyboard");
 const QString kTypeMouse = QStringLiteral("mouse");
 const QString kTypeMouseToggle = QStringLiteral("mouseToggle");
+const QString kTypeWheelUp = QStringLiteral("wheelUp");
+const QString kTypeWheelDown = QStringLiteral("wheelDown");
 const QString kTypeSwitchLayer = QStringLiteral("switchLayer");
 const QString kTypeMouseMove = QStringLiteral("mouseMove");
 const QString kTypeLookAround = QStringLiteral("lookAround");
@@ -56,6 +58,12 @@ QJsonObject actionToJson(const MappedAction& action) {
         case MappedAction::Type::MouseToggle:
             json.insert(QStringLiteral("type"), kTypeMouseToggle);
             json.insert(QStringLiteral("button"), mouseButtonName(action.mouseButton));
+            break;
+        case MappedAction::Type::WheelUp:
+            json.insert(QStringLiteral("type"), kTypeWheelUp);
+            break;
+        case MappedAction::Type::WheelDown:
+            json.insert(QStringLiteral("type"), kTypeWheelDown);
             break;
         case MappedAction::Type::SwitchLayer:
             json.insert(QStringLiteral("type"), kTypeSwitchLayer);
@@ -104,6 +112,14 @@ bool parseAction(const QJsonObject& json, MappedAction* out) {
         if (!mouseButtonFromName(json.value(QStringLiteral("button")).toString(), &b))
             return false;
         *out = MappedAction::mouseToggle(b);
+        return true;
+    }
+    if (type == kTypeWheelUp) {
+        *out = MappedAction::wheelUp();
+        return true;
+    }
+    if (type == kTypeWheelDown) {
+        *out = MappedAction::wheelDown();
         return true;
     }
     if (type == kTypeSwitchLayer) {
@@ -257,6 +273,8 @@ QByteArray toJson(const ControllerProfile& profile, int indent) {
     gs.insert(QStringLiteral("overlayX"), profile.globalSettings.overlayX);
     gs.insert(QStringLiteral("overlayY"), profile.globalSettings.overlayY);
     gs.insert(QStringLiteral("overlayScale"), profile.globalSettings.overlayScale);
+    gs.insert(QStringLiteral("mainWindowX"), profile.globalSettings.mainWindowX);
+    gs.insert(QStringLiteral("mainWindowY"), profile.globalSettings.mainWindowY);
     gs.insert(QStringLiteral("releaseOnForegroundChange"), profile.globalSettings.releaseOnForegroundChange);
     gs.insert(QStringLiteral("confirmOnClose"), profile.globalSettings.confirmOnClose);
     root.insert(QStringLiteral("globalSettings"), gs);
@@ -303,6 +321,8 @@ ControllerProfile fromJson(const QByteArray& json) {
         s.overlayX = gs.value(QStringLiteral("overlayX")).toInt(-1);
         s.overlayY = gs.value(QStringLiteral("overlayY")).toInt(-1);
         s.overlayScale = gs.value(QStringLiteral("overlayScale")).toDouble(1.0);
+        s.mainWindowX = gs.value(QStringLiteral("mainWindowX")).toInt(-1);
+        s.mainWindowY = gs.value(QStringLiteral("mainWindowY")).toInt(-1);
         s.releaseOnForegroundChange = gs.value(QStringLiteral("releaseOnForegroundChange")).toBool(true);
         s.confirmOnClose = gs.value(QStringLiteral("confirmOnClose")).toBool(true);
         profile.globalSettings = s;

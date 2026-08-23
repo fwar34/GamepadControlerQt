@@ -29,6 +29,9 @@ public:
     virtual void sendMouseDown(MouseButton button) = 0;
     virtual void sendMouseUp(MouseButton button) = 0;
 
+    // 滚动鼠标滚轮（steps>0 上滚、<0 下滚，单位：格）
+    virtual void sendMouseWheel(int steps) = 0;
+
     // 相对移动鼠标（单位：像素，支持小数；内部做亚像素余量累积，
     // 达到 1px 才补发，避免精度丢失）
     virtual void sendMouseMove(float dx, float dy) = 0;

@@ -230,6 +230,7 @@ void LayerEditDialog::buildUi() {
     actionTypeCombo_ = new QComboBox(this);
     actionTypeCombo_->addItems({
         tr("无（不映射）"), tr("键盘按键"), tr("鼠标点击"), tr("鼠标长按"),
+        tr("鼠标滚轮上滚"), tr("鼠标滚轮下滚"),
         tr("切换层"), tr("鼠标移动"), tr("视角控制"),
         tr("切换映射"), tr("切换屏幕键盘"), tr("切换悬浮窗"),
     });
@@ -240,7 +241,8 @@ void LayerEditDialog::buildUi() {
     form->addWidget(actionTypeCombo_);
 
     // 参数区（QStackedWidget 按动作类型切换页面）：
-    //   0 无 | 1 键盘 | 2 鼠标点击 | 3 鼠标长按 | 4 切换层 | 5 鼠标移动 | 6 视角控制
+    //   0 无 | 1 键盘 | 2 鼠标点击 | 3 鼠标长按 | 4 滚轮上 | 5 滚轮下
+    //   | 6 切换层 | 7 鼠标移动 | 8 视角控制 | 9 切换映射 | 10 屏幕键盘 | 11 悬浮窗
     paramStack_ = new QStackedWidget(this);
     paramStack_->addWidget(new QWidget(this));                     // 0 无
     keyCombo_ = makeKeyCombo(false);
@@ -249,13 +251,15 @@ void LayerEditDialog::buildUi() {
     paramStack_->addWidget(mouseCombo_);                           // 2 鼠标点击
     mouseToggleCombo_ = makeMouseCombo();
     paramStack_->addWidget(mouseToggleCombo_);                     // 3 鼠标长按
+    paramStack_->addWidget(new QLabel(tr("按下时向上滚动一格"), this)); // 4 滚轮上
+    paramStack_->addWidget(new QLabel(tr("按下时向下滚动一格"), this)); // 5 滚轮下
     layerCombo_ = makeLayerCombo(profile_);
-    paramStack_->addWidget(layerCombo_);                           // 4 切换层
-    paramStack_->addWidget(new QLabel(tr("由左摇杆输入驱动"), this)); // 5 鼠标移动
-    paramStack_->addWidget(new QLabel(tr("由右摇杆输入驱动"), this)); // 6 视角控制
-    paramStack_->addWidget(new QLabel(tr("按下时切换映射启停"), this)); // 7 切换映射
-    paramStack_->addWidget(new QLabel(tr("按下时切换屏幕键盘"), this)); // 8 切换屏幕键盘
-    paramStack_->addWidget(new QLabel(tr("按下时切换悬浮窗"), this)); // 9 切换悬浮窗
+    paramStack_->addWidget(layerCombo_);                           // 6 切换层
+    paramStack_->addWidget(new QLabel(tr("由左摇杆输入驱动"), this)); // 7 鼠标移动
+    paramStack_->addWidget(new QLabel(tr("由右摇杆输入驱动"), this)); // 8 视角控制
+    paramStack_->addWidget(new QLabel(tr("按下时切换映射启停"), this)); // 9 切换映射
+    paramStack_->addWidget(new QLabel(tr("按下时切换屏幕键盘"), this)); // 10 切换屏幕键盘
+    paramStack_->addWidget(new QLabel(tr("按下时切换悬浮窗"), this)); // 11 切换悬浮窗
     form->addWidget(paramStack_);
 
     // 子命令（组合键）：仅键盘按键动作生效，最多 3 个
@@ -417,8 +421,14 @@ void LayerEditDialog::loadForm() {
                 actionTypeCombo_->setCurrentIndex(3);
                 setComboIndex(mouseToggleCombo_, static_cast<int>(m->action.mouseButton));
                 break;
-            case MappedAction::Type::SwitchLayer:
+            case MappedAction::Type::WheelUp:
                 actionTypeCombo_->setCurrentIndex(4);
+                break;
+            case MappedAction::Type::WheelDown:
+                actionTypeCombo_->setCurrentIndex(5);
+                break;
+            case MappedAction::Type::SwitchLayer:
+                actionTypeCombo_->setCurrentIndex(6);
                 // 先按 id 匹配；匹配不到则按 name 匹配（兼容旧配置）
                 {
                     const int idx = layerCombo_->findData(m->action.layerName);
@@ -437,19 +447,19 @@ void LayerEditDialog::loadForm() {
                 }
                 break;
             case MappedAction::Type::MouseMove:
-                actionTypeCombo_->setCurrentIndex(5);
-                break;
-            case MappedAction::Type::LookAround:
-                actionTypeCombo_->setCurrentIndex(6);
-                break;
-            case MappedAction::Type::ToggleMapping:
                 actionTypeCombo_->setCurrentIndex(7);
                 break;
-            case MappedAction::Type::ToggleOnScreenKeyboard:
+            case MappedAction::Type::LookAround:
                 actionTypeCombo_->setCurrentIndex(8);
                 break;
-            case MappedAction::Type::ToggleOverlay:
+            case MappedAction::Type::ToggleMapping:
                 actionTypeCombo_->setCurrentIndex(9);
+                break;
+            case MappedAction::Type::ToggleOnScreenKeyboard:
+                actionTypeCombo_->setCurrentIndex(10);
+                break;
+            case MappedAction::Type::ToggleOverlay:
+                actionTypeCombo_->setCurrentIndex(11);
                 break;
         }
     }
@@ -494,7 +504,13 @@ void LayerEditDialog::saveFormFor(ControllerButton button) {
             m.action = MappedAction::mouseToggle(
                 static_cast<MouseButton>(mouseToggleCombo_->currentData().toInt()));
             break;
-        case 4: {  // 切换层：目标层为空则视为清除
+        case 4:  // 鼠标滚轮上滚
+            m.action = MappedAction::wheelUp();
+            break;
+        case 5:  // 鼠标滚轮下滚
+            m.action = MappedAction::wheelDown();
+            break;
+        case 6: {  // 切换层：目标层为空则视为清除
             const QString layerName = layerCombo_->currentData().toString();
             if (layerName.isEmpty()) {
                 copy_.buttonMappings.remove(button);
@@ -504,19 +520,19 @@ void LayerEditDialog::saveFormFor(ControllerButton button) {
             m.action = MappedAction::switchLayer(layerName);
             break;
         }
-        case 5:  // 鼠标移动
+        case 7:  // 鼠标移动
             m.action = MappedAction::mouseMove();
             break;
-        case 6:  // 视角控制
+        case 8:  // 视角控制
             m.action = MappedAction::lookAround();
             break;
-        case 7:  // 切换映射
+        case 9:  // 切换映射
             m.action = MappedAction::toggleMapping();
             break;
-        case 8:  // 切换屏幕键盘
+        case 10:  // 切换屏幕键盘
             m.action = MappedAction::toggleOnScreenKeyboard();
             break;
-        case 9:  // 切换悬浮窗
+        case 11:  // 切换悬浮窗
             m.action = MappedAction::toggleOverlay();
             break;
         default:

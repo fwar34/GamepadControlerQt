@@ -228,6 +228,18 @@ public:
         injectMouseButtonRaw(button, false);
     }
 
+    // 滚动鼠标滚轮（steps>0 上滚、<0 下滚，单位：格）。
+    // 瞬时事件，不记录按键状态（无按下/松开语义）。
+    void sendMouseWheel(int steps) override {
+        if (steps == 0) return;
+        INPUT input;
+        memset(&input, 0, sizeof(input));
+        input.type = INPUT_MOUSE;
+        input.mi.dwFlags = MOUSEEVENTF_WHEEL;
+        input.mi.mouseData = static_cast<DWORD>(steps * WHEEL_DELTA);  // 1 格 = 120
+        SendInput(1, &input, sizeof(INPUT));
+    }
+
     // 相对移动鼠标（像素，允许小数）。
     // 亚像素余量累积：小数部分保留到 mouseRemainder_，
     // 累积满 1px 才补发，避免右摇杆平滑移动的精度丢失。

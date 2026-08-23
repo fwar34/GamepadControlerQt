@@ -38,6 +38,12 @@ QString KeyMapping::describe() const {
         case MappedAction::Type::MouseToggle:
             parts << QStringLiteral("长按%1").arg(mouseButtonDisplayName(action.mouseButton));
             break;
+        case MappedAction::Type::WheelUp:
+            parts << QStringLiteral("滚轮上滚");
+            break;
+        case MappedAction::Type::WheelDown:
+            parts << QStringLiteral("滚轮下滚");
+            break;
         case MappedAction::Type::SwitchLayer:
             parts << QStringLiteral("切换→%1").arg(action.layerName);
             break;
