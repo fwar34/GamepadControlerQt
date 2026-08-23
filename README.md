@@ -16,8 +16,11 @@ Windows 本机手柄 → 键鼠映射器（Qt Widgets GUI）。参考 `L:\steaml
 - **左摇杆 WASD 移动**：8 方向，阈值 0.5
 - **右摇杆视角控制**：独立线程 125Hz 节拍，加速度曲线 + EMA 平滑 + 位移积分
 - **MouseToggle 长按锁存**：按住期间鼠标键保持按下（主动锁存，松开不改变状态）
-- **悬浮层信息窗**：独立置顶窗口，实时显示当前层与按下的手柄按键，可拖动、主窗口最小化不隐藏
+- **鼠标滚轮动作**：映射动作支持「滚轮上滚 / 滚轮下滚」，按下即注入一次滚轮事件
+- **悬浮层信息窗**：独立置顶窗口，实时显示当前层与按下的手柄按键，可拖动、主窗口最小化不隐藏；在悬浮窗上滚动鼠标滚轮可缩放窗口大小
+- **窗口位置记忆**：主窗口位置、悬浮窗位置与缩放比例均持久化到配置，下次启动恢复
 - **配置持久化**：JSON（version=2），与安卓版 `steamlike_config.json` 格式兼容，可互换
+- **托盘行为**：最小化主窗口隐藏到系统托盘（任务栏不显示图标）；「关闭时退出程序」选项决定点关闭是退出还是最小化到托盘
 
 ---
 
@@ -41,7 +44,10 @@ GamepadControlerQt/
 │   └── ui/
 │       ├── MainWindow.h/.cpp        # 主窗口（层按钮/设置滑块/启停/保存）
 │       ├── LayerEditDialog.h/.cpp   # 操作层编辑对话框
-│       └── OverlayWidget.h/.cpp     # 悬浮层信息窗口
+│       ├── OverlayWidget.h/.cpp     # 悬浮层信息窗口
+│       ├── HelpDialog.h/.cpp        # 使用说明对话框
+│       ├── DarkTitleBar.h           # 深色标题栏工具（DwmSetWindowAttribute）
+│       └── res.qrc / icons/         # 资源文件与图标（下拉箭头 PNG）
 ```
 
 ---
@@ -54,9 +60,9 @@ GamepadControlerQt/
 
 ```powershell
 cmake -S . -B build-qt6 -G "Ninja" `
-  -DCMAKE_PREFIX_PATH=M:/msys64/ucrt64 `
-  -DCMAKE_CXX_COMPILER=M:/msys64/ucrt64/bin/g++.exe `
-  -DCMAKE_MAKE_PROGRAM=H:/Qt/Tools/Ninja/ninja.exe `
+  -DCMAKE_PREFIX_PATH=I:/msys64/ucrt64 `
+  -DCMAKE_CXX_COMPILER=I:/msys64/ucrt64/bin/g++.exe `
+  -DCMAKE_MAKE_PROGRAM=I:/msys64/ucrt64/bin/ninja.exe `
   -DCMAKE_BUILD_TYPE=Release
 cmake --build build-qt6
 ```
@@ -103,8 +109,9 @@ XInputGamepadSource ──buttonChanged/stickChanged──> SteamInput
 1. **层查询顺序**：`getEffectiveMapping` 从最后激活的操作层开始，逐层回退到公共层，返回第一个命中的映射。
 2. **层切换**：`SwitchLayer` 动作由引擎 `handleButtonEvent` 处理——按下时激活目标层并记录触发按钮，松开时停用对应层并直接返回（不触发映射）。`triggerButton` 字段仅用于 UI 展示，不参与运行时切换。
 3. **精确释放**：松开按钮时按「已注入状态」（`releaseButtonInjection`）释放，与当前层映射无关，避免长按触发键切层导致按键卡死。
-4. **右摇杆线程模型**：主线程写入 `std::atomic<float>` 摇杆值，look 线程固定 8ms 节拍读取并计算位移；注入器内部 `QMutex` 保护按键状态。
-5. **连接防抖**：连续 3 次轮询失败才判定手柄断开；断开时 `releaseAllInputs()` 释放全部注入（含 MouseToggle 锁存），防止鼠标卡死。
+4. **注入线程模型**：`buttonMapped`/`stickMapped` 由手柄轮询线程经 `Qt::DirectConnection` 直接执行，注入不经过主线程事件队列——否则若注入的鼠标按下落在本程序自身标题栏上，Windows 会进入非客户区模态追踪循环阻塞主线程，注入的松开事件排不进队列，导致按键/鼠标卡死；DirectConnection 让手柄线程仍能发送松开事件解除模态循环。
+5. **右摇杆视角线程**：look 线程固定 8ms 节拍读取右摇杆原子量并注入鼠标移动；注入器内部互斥锁保护按键状态。手柄线程与主线程（`releaseAllInputs`）通过互斥锁串行化对注入状态容器的访问。
+6. **连接防抖**：连续 3 次轮询失败才判定手柄断开；断开时 `releaseAllInputs()` 释放全部注入（含 MouseToggle 锁存），防止鼠标卡死。
 
 ---
 
@@ -152,7 +159,7 @@ XInputGamepadSource ──buttonChanged/stickChanged──> SteamInput
 | 字段 | 说明 |
 |---|---|
 | `version` | 配置版本号，必须为 2，否则拒绝加载 |
-| `globalSettings` | 死区 / 灵敏度 / 光标速度（预留）/ 平滑 / 加速度 |
+| `globalSettings` | 死区 / 灵敏度 / 光标速度（预留）/ 平滑 / 加速度；`invertLookX/Y` 视角翻转开关；`overlayX/Y`/`overlayScale` 悬浮窗位置与缩放（-1 / 1.0 表示未保存过）；`mainWindowX/Y` 主窗口位置（-1 表示未保存过）；`releaseOnForegroundChange` 前台窗口切换时是否释放注入（默认 true）；`confirmOnClose` 「关闭时退出程序」选项：true 点关闭直接退出，false 点关闭最小化到托盘 |
 | `commonLayer` / `layers` | 层对象；`id` 唯一标识（运行时定位用，重命名不影响），`name` 显示名可修改 |
 | `triggerButton` | 仅 UI 展示用，不参与运行时层切换 |
 | `buttonMappings` | 键名 -> 映射；键名见「手柄按键名」 |
@@ -163,7 +170,10 @@ XInputGamepadSource ──buttonChanged/stickChanged──> SteamInput
 
 ### 手柄按键名（buttonMappings 键名 / triggerButton）
 
-`A` `B` `X` `Y` `LB` `RB` `LT` `RT` `L3` `R3` `START` `BACK` `GUIDE` `DPAD_UP` `DPAD_DOWN` `DPAD_LEFT` `DPAD_RIGHT` `TOUCHPAD_CLICK`
+`A` `B` `X` `Y` `LB` `RB` `LT` `RT` `L3` `R3` `MENU` `OPTIONS` `DPAD_UP` `DPAD_DOWN` `DPAD_LEFT` `DPAD_RIGHT`
+
+- `MENU` = 手柄 START 键，`OPTIONS` = 手柄 BACK 键；`LT`/`RT` 为模拟扳机，压过半程（≥128）视为按下。
+- `GUIDE`（Home 键）与 `TOUCHPAD_CLICK`（触控板点击）仅保留用于兼容安卓版配置，XInput 无对应物理位，不会产生输入。
 
 ---
 

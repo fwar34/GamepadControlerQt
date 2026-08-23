@@ -24,12 +24,21 @@ KeyboardMouseMapper::~KeyboardMouseMapper() {
 // 开始映射：连接 SteamInput 信号、同步全局设置、启动 look 线程
 void KeyboardMouseMapper::start() {
     if (running_.load()) return;
+    // 必须用 DirectConnection：buttonMapped/stickMapped 在「手柄轮询线程」发出，
+    // 若用默认 AutoConnection（接收者在主线程）会变成 QueuedConnection，
+    // 导致所有键鼠注入都跑到主线程执行。一旦注入的鼠标按下落在程序自身标题栏上，
+    // Windows 会进入非客户区模态追踪循环阻塞主线程，松开事件排不进主线程队列，
+    // 注入的 mouse up 永远发不出去 → 标题栏按钮点击不生效、手柄输入整体无响应。
+    // DirectConnection 让注入在独立的手柄线程执行，主线程被模态循环占用时
+    // 仍能发送 mouse up 让模态循环退出。线程安全由 stateMutex_ + 注入器内部互斥保证。
+    const Qt::ConnectionType directUnique =
+        static_cast<Qt::ConnectionType>(Qt::DirectConnection | Qt::UniqueConnection);
     connect(input_, &SteamInput::buttonMapped,
-            this, &KeyboardMouseMapper::onButtonMapped, Qt::UniqueConnection);
+            this, &KeyboardMouseMapper::onButtonMapped, directUnique);
     connect(input_, &SteamInput::stickMapped,
-            this, &KeyboardMouseMapper::onStickMapped, Qt::UniqueConnection);
+            this, &KeyboardMouseMapper::onStickMapped, directUnique);
     connect(input_, &SteamInput::profileChanged,
-            this, &KeyboardMouseMapper::onProfileChanged, Qt::UniqueConnection);
+            this, &KeyboardMouseMapper::onProfileChanged, directUnique);
     onProfileChanged();
     running_.store(true);
     lookThread_ = std::thread(&KeyboardMouseMapper::lookLoop, this);
@@ -50,6 +59,9 @@ void KeyboardMouseMapper::stop() {
 // 供 stop() 和手柄断开（main.cpp 连接 connectedChanged(false)）时调用，
 // 避免 toggle 保持的鼠标键在断开后卡死。
 void KeyboardMouseMapper::releaseAllInputs() {
+    // 与手柄线程的 onButtonMapped/onStickMapped 互斥，
+    // 保证「已注入的 down」一定会被这里（或后续松开事件）配对补发 up。
+    QMutexLocker locker(&stateMutex_);
     // 释放所有物理注入（含 MouseToggle 保持按下的鼠标键）
     injector_->releaseAll();
     pressedMainKeys_.clear();
@@ -80,6 +92,8 @@ void KeyboardMouseMapper::onProfileChanged() {
 //       防止长按触发键切换层后松开时释放错对象导致按键卡死）。
 // 按下：根据动作类型分发到具体处理器。
 void KeyboardMouseMapper::onButtonMapped(ControllerButton button, bool isPressed, const KeyMapping& mapping) {
+    // 与 GUI 线程的 releaseAllInputs 互斥，防止并发修改注入状态导致 down/up 不对称
+    QMutexLocker locker(&stateMutex_);
     if (!isPressed) {
         releaseButtonInjection(button);
         return;
@@ -194,6 +208,9 @@ void KeyboardMouseMapper::handleStick(ControllerStick stick, float x, float y) {
         latestLookY_.store(y);
         return;
     }
+
+    // 左摇杆 WASD 移动：修改 leftStickPressedKeys_，与 releaseAllInputs 互斥
+    QMutexLocker locker(&stateMutex_);
 
     // 左摇杆 -> WASD 8 方向（阈值 0.5）
     // 注意：XInput 的 Y 轴向上为正（向上推 => y>0），判定要跟物理方向一致。

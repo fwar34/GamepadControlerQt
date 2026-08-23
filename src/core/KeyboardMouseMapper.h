@@ -4,6 +4,7 @@
 #include "SteamInput.h"
 
 #include <QHash>
+#include <QMutex>
 #include <QObject>
 #include <QSet>
 #include <atomic>
@@ -21,8 +22,11 @@
 //     处理流程：幅值钳制 -> 加速度曲线 -> 时间常数 EMA 平滑 -> 位移积分
 //
 // 线程模型：
-//   - 主线程：接收信号、更新注入状态、写入右摇杆原子量
+//   - 手柄轮询线程：onButtonMapped/onStickMapped 经 DirectConnection 直接执行，
+//     键鼠注入不经过主线程事件队列（避免主线程被模态循环占用时注入卡死）
+//   - 主线程：releaseAllInputs（stop / 前台切换 / 手柄断开）、配置同步
 //   - look 线程：独立 std::thread，以固定节拍读取右摇杆原子量并注入鼠标移动
+// 手柄线程与主线程通过 stateMutex_ 串行化对注入状态容器的访问。
 // =====================================================================
 class KeyboardMouseMapper : public QObject {
     Q_OBJECT
@@ -73,6 +77,13 @@ private:
 
     SteamInput* input_;
     InputInjector* injector_;
+
+    // 注入状态互斥锁：保护下方状态容器。
+    // onButtonMapped/onStickMapped 在「手柄轮询线程」执行，
+    // releaseAllInputs 在「GUI 线程」（onCheckForeground / stop / 手柄断开）执行。
+    // 无锁时两者并发修改状态会导致 down/up 不对称 —— 例：
+    //   注入 leftdown 后 releaseAllInputs 清空状态，松开时 up 被吞 → 鼠标键永久卡死。
+    QMutex stateMutex_;
 
     // ---- 当前注入状态（按下时记录，松开时按状态精确释放） ----
     QHash<ControllerButton, int> pressedMainKeys_;            // 按钮 -> 主键 keyCode

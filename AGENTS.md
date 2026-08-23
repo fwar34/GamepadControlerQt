@@ -11,9 +11,9 @@ CMake 3.16+ / Ninja / Qt Widgets (Qt 5.12+ or Qt 6). Two separate build director
 ```powershell
 # Qt 6 (msys2 UCRT64)
 cmake -S . -B build-qt6 -G "Ninja" `
-  -DCMAKE_PREFIX_PATH=M:/msys64/ucrt64 `
-  -DCMAKE_CXX_COMPILER=M:/msys64/ucrt64/bin/g++.exe `
-  -DCMAKE_MAKE_PROGRAM=H:/Qt/Tools/Ninja/ninja.exe `
+  -DCMAKE_PREFIX_PATH=I:/msys64/ucrt64 `
+  -DCMAKE_CXX_COMPILER=I:/msys64/ucrt64/bin/g++.exe `
+  -DCMAKE_MAKE_PROGRAM=I:/msys64/ucrt64/bin/ninja.exe `
   -DCMAKE_BUILD_TYPE=Release
 cmake --build build-qt6
 
@@ -21,7 +21,7 @@ cmake --build build-qt6
 cmake -S . -B build -G "Ninja" `
   -DCMAKE_PREFIX_PATH=H:/Qt/5.15.2/mingw81_64 `
   -DCMAKE_CXX_COMPILER=H:/Qt/Tools/mingw810_64/bin/g++.exe `
-  -DCMAKE_MAKE_PROGRAM=H:/Qt/Tools/Ninja/ninja.exe `
+  -DCMAKE_MAKE_PROGRAM=I:/msys64/ucrt64/bin/ninja.exe `
   -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
@@ -46,14 +46,14 @@ XInputGamepadSource → SteamInput → KeyboardMouseMapper → Windows SendInput
 - **KeyCode uses Android constants**: Config and core layer store Android KeyEvent values (Space=62, W=51, etc.). Runtime converts to Windows VK via `androidKeyCodeToWindowsVK()`. Never use Windows VK constants in config or core logic.
 - **Layer query order**: From last-activated operation layer back to common layer, returns first hit.
 - **Precise release**: Release by "injected state", not current layer mapping — prevents stuck keys on layer switch.
-- **Thread model**: Main thread handles button mapping + writes right-stick atomic; look thread runs fixed 8ms tick for mouse movement. Injector uses QMutex internally.
+- **Thread model**: Gamepad polling thread runs button/stick mapping via `Qt::DirectConnection` (no event queue); look thread runs fixed 8ms tick for mouse movement; main thread runs `releaseAllInputs` (stop / foreground switch / disconnect). A QMutex serializes injected-state access between gamepad thread and main thread; injector uses QMutex internally.
 - **Connection debounce**: 3 consecutive poll failures = disconnect; disconnect calls `releaseAllInputs()`.
 
 ## Gotchas
 
 - **UAC / Administrator**: `src/app.manifest` declares `requireAdministrator`. The exe launches elevated because target games (e.g. WoW) run high-integrity — without elevation, SendInput is silently blocked by UIPI. Don't remove the manifest unless you don't need to inject into elevated windows.
 - **WIN32 subsystem**: CMake uses `add_executable(... WIN32 ...)` — no console window. Debug output goes to Qt debug or a file.
-- **Signal connections use DirectConnection**: Gamepad polling thread → SteamInput uses `Qt::DirectConnection` for low latency. This means the handler runs on the gamepad thread, not the GUI thread.
+- **Signal connections use DirectConnection**: Gamepad polling thread → SteamInput, and SteamInput → KeyboardMouseMapper, both use `Qt::DirectConnection` for low latency. Handlers run on the gamepad thread, never the GUI thread. Never fall back to QueuedConnection: if injection ran on the main thread, an injected mouse-press landing on this program's own title bar enters Windows' non-client modal tracking loop that blocks the main thread, so the injected mouse-up can never be queued → stuck keys / frozen UI. DirectConnection lets the gamepad thread still send mouse-up and break the modal loop.
 - **Factory returns raw pointer**: `createWindowsInputInjector()` returns `InputInjector*`; caller must `delete` it.
 
 ## Source Encoding

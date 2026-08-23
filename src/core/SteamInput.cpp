@@ -137,7 +137,15 @@ void SteamInput::handleButtonEvent(ControllerButton button, bool isPressed) {
 
     // 查询当前层栈下的有效映射；无映射则不产生任何事件
     const KeyMapping* mapping = getEffectiveMapping(button);
-    if (!mapping) return;
+    if (!mapping) {
+        // 松开时：即使该按钮在「松开时刻」的层栈下已无映射，仍要广播松开事件，
+        // 让映射器按「已注入状态」精确释放（防止此前注入的按键卡死）。
+        // 例：按住切层键激活 Down 层期间按下按钮，先松开切层键导致层回退，
+        //     再松开该按钮时当前层无其映射 —— 若丢弃松开事件，此前注入的按键会永久卡住。
+        if (!isPressed)
+            emit buttonMapped(button, false, KeyMapping());
+        return;
+    }
 
     // 切换层动作由引擎处理：按住激活目标层并记录触发按钮，
     // 松开时（上面分支）停用该层。注意：这里不再广播 buttonMapped。
