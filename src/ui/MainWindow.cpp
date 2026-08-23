@@ -152,6 +152,7 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     trayIcon_->show();
 
     auto* central = new QWidget(this);
+    central->setObjectName(QStringLiteral("centralRoot"));
     auto* root = new QVBoxLayout(central);
 
     // ---- 顶部：状态 + 启停 ----
@@ -307,6 +308,99 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     root->addLayout(bottomBar);
 
     setCentralWidget(central);
+    // ---- 深色主题（仅作用于主窗口子树，不影响悬浮窗/编辑对话框） ----
+    setStyleSheet(R"(
+        #centralRoot {
+            background-color: #2b2d31;
+        }
+        QWidget {
+            color: #d5d9df;
+            font-family: "Microsoft YaHei";
+            font-size: 12px;
+        }
+        QGroupBox {
+            background-color: #33363b;
+            border: 1px solid #40434a;
+            border-radius: 8px;
+            margin-top: 12px;
+            font-weight: bold;
+            color: #dfe3e8;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            subcontrol-position: top left;
+            left: 10px;
+            padding: 2px 6px;
+            color: #7fc9c4;
+            background-color: transparent;
+        }
+        QPushButton {
+            background-color: #3d4147;
+            color: #e8eaee;
+            border: 1px solid #4a4e55;
+            border-radius: 6px;
+            padding: 5px 14px;
+        }
+        QPushButton:hover {
+            background-color: #474b52;
+            border-color: #7fc9c4;
+        }
+        QPushButton:pressed {
+            background-color: #2f3237;
+        }
+        QPushButton:focus {
+            outline: none;
+        }
+        QSlider::groove:horizontal {
+            height: 4px;
+            background: #4a4e55;
+            border-radius: 2px;
+        }
+        QSlider::sub-page:horizontal {
+            background: #7fc9c4;
+            border-radius: 2px;
+        }
+        QSlider::add-page:horizontal {
+            background: #4a4e55;
+            border-radius: 2px;
+        }
+        QSlider::handle:horizontal {
+            width: 14px;
+            height: 14px;
+            margin: -5px 0;
+            border-radius: 7px;
+            background: #7fc9c4;
+            border: 1px solid #a0e8e2;
+        }
+        QSlider::handle:horizontal:hover {
+            background: #9adfda;
+        }
+        QCheckBox {
+            spacing: 6px;
+            color: #d5d9df;
+        }
+        QCheckBox::indicator {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            border: 1px solid #555a62;
+            background: #2b2d31;
+        }
+        QCheckBox::indicator:hover {
+            border-color: #7fc9c4;
+        }
+        QCheckBox::indicator:checked {
+            background: #7fc9c4;
+            border-color: #7fc9c4;
+        }
+        QStatusBar {
+            background: #26282c;
+            color: #aeb4bd;
+        }
+        QStatusBar::item {
+            border: none;
+        }
+    )");
     statusBar()->showMessage(tr("配置文件：%1").arg(ConfigManager::configFilePath()));
 
     // ---- 初始状态同步 ----
@@ -356,8 +450,8 @@ void MainWindow::onLayerChanged(const QString& activeLayerName) {
 // ============================================================
 void MainWindow::onConnectionChanged(bool connected) {
     connectionLabel_->setText(connected ? tr("手柄：已连接") : tr("手柄：未连接"));
-    connectionLabel_->setStyleSheet(connected ? QStringLiteral("color: #2e7d32; font-weight: bold;")
-                                              : QStringLiteral("color: #b71c1c; font-weight: bold;"));
+    connectionLabel_->setStyleSheet(connected ? QStringLiteral("color: #66bb6a; font-weight: bold;")
+                                              : QStringLiteral("color: #ef5350; font-weight: bold;"));
 }
 
 // ============================================================
@@ -369,7 +463,7 @@ void MainWindow::refreshLayerButtons() {
     for (QPushButton* btn : layerButtons_) {
         const QString layerId = btn->objectName();
         const bool active = input_->isLayerActive(layerId);
-        btn->setStyleSheet(active ? QStringLiteral("background: #2196f3; color: white;")
+        btn->setStyleSheet(active ? QStringLiteral("background: #22958c; color: white; font-weight: bold; border-radius: 6px;")
                                   : QString());
         // 更新按钮文本为当前层名称
         if (const OperationLayer* layer = input_->profile.findLayer(layerId)) {
@@ -414,7 +508,7 @@ void MainWindow::applyStartStopState(bool mappingActive) {
         startStopButton_->setText(tr("停止映射"));
         startStopButton_->setStyleSheet(
             QStringLiteral("QPushButton { background-color: #2e7d32; color: white;"
-                           " font-weight: bold; border-radius: 3px; padding: 4px 12px; }"));
+                           " font-weight: bold; border-radius: 6px; padding: 4px 12px; }"));
     } else {
         startStopButton_->setText(tr("启动映射"));
         startStopButton_->setStyleSheet(

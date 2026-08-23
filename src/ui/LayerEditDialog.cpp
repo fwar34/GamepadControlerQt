@@ -289,6 +289,81 @@ void LayerEditDialog::buildUi() {
     connect(buttons, &QDialogButtonBox::rejected, this, &LayerEditDialog::reject);
     root->addWidget(buttons);
 
+    // ---- 深色主题（与主窗口一致的灰底 + 青绿强调） ----
+    setStyleSheet(R"(
+        QDialog {
+            background-color: #2b2d31;
+        }
+        QLabel {
+            color: #d5d9df;
+            background-color: transparent;
+        }
+        QLineEdit {
+            background-color: #33363b;
+            color: #e8eaee;
+            border: 1px solid #4a4e55;
+            border-radius: 5px;
+            padding: 4px 8px;
+            selection-background-color: #7fc9c4;
+            selection-color: #1c1e22;
+        }
+        QLineEdit:focus {
+            border-color: #7fc9c4;
+        }
+        QListWidget {
+            background-color: #2b2d31;
+            color: #e8eaee;
+            border: 1px solid #4a4e55;
+            border-radius: 6px;
+            outline: none;
+        }
+        QListWidget::item {
+            padding: 5px 8px;
+            border-radius: 4px;
+        }
+        QListWidget::item:selected {
+            background-color: #22958c;
+            color: #ffffff;
+        }
+        QListWidget::item:hover:!selected {
+            background-color: #3d4147;
+        }
+        QComboBox {
+            background-color: #33363b;
+            color: #e8eaee;
+            border: 1px solid #4a4e55;
+            border-radius: 5px;
+            padding: 3px 8px;
+        }
+        QComboBox:hover {
+            border-color: #7fc9c4;
+        }
+        QComboBox QAbstractItemView {
+            background-color: #33363b;
+            color: #e8eaee;
+            border: 1px solid #4a4e55;
+            selection-background-color: #22958c;
+            selection-color: #ffffff;
+        }
+        QPushButton {
+            background-color: #3d4147;
+            color: #e8eaee;
+            border: 1px solid #4a4e55;
+            border-radius: 6px;
+            padding: 5px 14px;
+        }
+        QPushButton:hover {
+            background-color: #474b52;
+            border-color: #7fc9c4;
+        }
+        QPushButton:pressed {
+            background-color: #2f3237;
+        }
+        QDialogButtonBox {
+            background-color: transparent;
+        }
+    )");
+
     resize(620, 480);
 }
 
