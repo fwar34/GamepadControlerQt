@@ -139,7 +139,7 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     });
     trayMenu_->addSeparator();
     QAction* quitAction = trayMenu_->addAction(tr("退出"));
-    connect(quitAction, &QAction::triggered, this, &QWidget::close);
+    connect(quitAction, &QAction::triggered, this, &MainWindow::exitApplication);
     trayIcon_->setContextMenu(trayMenu_);
     // 双击托盘图标 → 显示主窗口
     connect(trayIcon_, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
@@ -536,10 +536,26 @@ void MainWindow::closeEvent(QCloseEvent* event) {
         event->ignore();
         return;
     }
-    if (overlay_) { overlay_->close(); delete overlay_; overlay_ = nullptr; }
+    // 悬浮窗位置在析构中统一保存（这里仅关闭不删除，避免丢失坐标）
+    if (overlay_) overlay_->close();
     mapper_->stop();
     gamepad_->stop();
     event->accept();
+}
+
+// ============================================================
+// exitApplication：托盘「退出」统一入口
+// ============================================================
+// 保存悬浮窗位置后直接退出事件循环（绕过关闭确认/最小化逻辑，
+// 确保「关闭时最小化到托盘」设置下托盘退出仍能真正退出程序），
+// 配置落盘由 ~MainWindow 完成。
+void MainWindow::exitApplication() {
+    if (overlay_) {
+        const QPoint pos = overlay_->pos();
+        input_->profile.globalSettings.overlayX = pos.x();
+        input_->profile.globalSettings.overlayY = pos.y();
+    }
+    QApplication::quit();
 }
 
 // ============================================================

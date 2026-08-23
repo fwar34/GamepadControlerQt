@@ -48,6 +48,8 @@ private slots:
     void onCheckForeground();
     void closeEvent(QCloseEvent* event) override;
     void changeEvent(QEvent* event) override;
+    // 托盘「退出」统一入口：保存悬浮窗位置后退出程序
+    void exitApplication();
 
 private:
     // 根据当前 profile 重建层按钮文本（含显示名）
