@@ -23,6 +23,7 @@
 #include <QLabel>
 #include <QListWidget>
 #include <QStackedWidget>
+#include <QStringList>
 #include <QVBoxLayout>
 
 namespace {
@@ -173,12 +174,30 @@ void LayerEditDialog::buildUi() {
     nameLayout->addWidget(layerNameEdit_);
     root->addLayout(nameLayout);
 
-    // 触发按键提示（仅操作层有，仅供显示；实际切换由公共层映射完成）
-    if (copy_.hasTriggerButton) {
-        root->addWidget(new QLabel(
-            tr("触发按键（仅显示用，实际切换由公共层的“切换层”映射完成）：%1")
-                .arg(controllerButtonDisplayName(copy_.triggerButton)),
-            this));
+    // 触发按键提示（仅操作层有）：扫描公共层中实际配置为
+    // 「切换层 -> 本层」的按键，展示真正驱动进入本层的映射；
+    // triggerButton 字段仅作无映射时的补充提示。
+    const bool isCommon = (layer_ == &profile_->commonLayer);
+    if (!isCommon) {
+        QStringList triggers;
+        for (const ControllerButton b : allControllerButtons()) {
+            const KeyMapping* m = profile_->commonLayer.getMapping(b);
+            if (m && m->action.type == MappedAction::Type::SwitchLayer
+                && m->action.layerName == copy_.id)
+                triggers.append(controllerButtonDisplayName(b));
+        }
+        QString triggerText;
+        if (!triggers.isEmpty()) {
+            triggerText = tr("触发按键（切换到本层）：%1").arg(triggers.join(", "));
+        } else if (copy_.hasTriggerButton) {
+            triggerText = tr("触发按键（建议，尚未配置切换映射）：%1")
+                              .arg(controllerButtonDisplayName(copy_.triggerButton));
+        } else {
+            triggerText = tr("触发按键：未配置（请在公共层或其他层为某按键设置“切换层”动作）");
+        }
+        auto* triggerLabel = new QLabel(triggerText, this);
+        triggerLabel->setStyleSheet("color: #d0a060;");
+        root->addWidget(triggerLabel);
     }
 
     auto* hbox = new QHBoxLayout;
