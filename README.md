@@ -129,6 +129,139 @@ build\GamepadControllerQt.exe   # 或 build-qt6\GamepadControllerQt.exe
 | `OverlayWidget` | 悬浮信息窗（当前层/按下按键/展开映射列表/MouseToggle 锁存提示） | 主线程 |
 | `HelpDialog` / `DarkTitleBar` | 使用说明对话框 / 深色标题栏工具 | 主线程 |
 
+**核心类关系图（PlantUML 类图）**：
+
+```plantuml
+@startuml
+!theme plain
+hide circle
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam linetype ortho
+
+' ============ 核心注入链（单向依赖，无反向） ============
+class XInputGamepadSource {
+  -pollLoop_ : std::thread
+  -connected_ : bool
+  +start() / stop()
+  #pollLoop()        : 125Hz XInputGetState
+  --signals--
+  +buttonChanged(ControllerButton, bool)
+  +stickChanged(ControllerStick, float, float)
+  +connectedChanged(bool)
+}
+
+class SteamInput {
+  +profile : ControllerProfile
+  -layerStack_ : QList<ActiveLayerEntry>
+  +handleButtonEvent(btn, pressed)
+  +handleStickInput(stick, x, y)
+  +getEffectiveMapping(btn) : const KeyMapping*
+  --signals--
+  +buttonMapped(btn, pressed, KeyMapping)
+  +stickMapped(stick, x, y)
+  +layerChanged(QString)
+  +profileChanged()
+}
+
+class KeyboardMouseMapper {
+  -stateMutex_ : QMutex
+  -lookThread_ : std::thread
+  +onButtonMapped(btn, pressed, KeyMapping)
+  +onStickMapped(stick, x, y)
+  +releaseAllInputs()
+  #lookLoop()          : 固定 8ms 节拍
+  #processLookTick()   : 平滑 + 位移积分
+}
+
+interface InputInjector {
+  +sendKeyDown(keyCode) / sendKeyUp(keyCode)
+  +sendMouseDown(btn) / sendMouseUp(btn)
+  +sendMouseMove(dx, dy)
+  +sendMouseWheel(delta)
+  +releaseAll()
+}
+
+class WindowsInputInjector {
+  -mutex_ : QMutex
+  -androidKeyCodeToWindowsVK(code) : int
+  -androidKeyCodeToWindowsScanCode(code) : int
+  -injectKey(vk, scan, keyEventFlag)
+  -injectMouseButtonRaw(btn, down)
+}
+
+XInputGamepadSource ..> SteamInput : DirectConnection
+SteamInput ..> KeyboardMouseMapper : DirectConnection | Unique
+KeyboardMouseMapper --> InputInjector : 注入调用
+InputInjector <|.. WindowsInputInjector : 实现
+
+' ============ 数据模型 ============
+class ControllerProfile {
+  +commonLayer : OperationLayer
+  +layers : QList<OperationLayer>
+  +findLayer(id) : OperationLayer*
+}
+
+class OperationLayer {
+  +id : QString
+  +name : QString
+  +triggerButton : ControllerButton
+  +getMapping(btn) : const KeyMapping*
+}
+
+class KeyMapping {
+  +action : MappedAction
+  +subCommands : QVector<int>
+}
+
+class MappedAction {
+  +type : Type
+  +keyCode : int          // Android KeyCode
+  +mouseButton : MouseButton
+  +layerName : QString
+}
+
+SteamInput o-- ControllerProfile
+ControllerProfile *-- OperationLayer : 1..10
+OperationLayer *-- KeyMapping
+KeyMapping *-- MappedAction
+
+' ============ 配置与 UI ============
+class ControllerConfig {
+  +serialize(...) : QJsonObject
+  +deserialize(...) : bool
+}
+
+class ConfigManager {
+  +save() / load() : bool
+}
+
+class MainWindow {
+  +onLayerChanged(layerId)
+  +editLayer(layer)
+  +startMapping() / stopMapping()
+}
+
+class LayerEditDialog {
+  -buttonLabels_ : QHash
+  +onGamepadButton(btn, pressed)
+}
+
+class OverlayWidget {
+  +setLayerName(name)
+  +setHeldButtons(buttons)
+  +setMouseToggleState(...)
+}
+
+ControllerConfig ..> ConfigManager : 被读写
+MainWindow *-- LayerEditDialog : 模态打开
+MainWindow o-- OverlayWidget : 悬浮窗
+MainWindow --> SteamInput : 信号连接
+MainWindow --> KeyboardMouseMapper : 启停 / 释放
+@enduml
+```
+
 对象所有权与生命周期：
 
 - 核心对象创建于 `main()` 栈上（`SteamInput input`、`KeyboardMouseMapper mapper`、`XInputGamepadSource gamepad`），随事件循环退出统一析构。
@@ -169,6 +302,68 @@ build\GamepadControllerQt.exe   # 或 build-qt6\GamepadControllerQt.exe
 | `KeyboardMouseMapper::mouseToggleChanged` → 悬浮窗/主窗口 | Auto（Queued） | UI 更新在主线程 |
 | 手柄 `buttonChanged` → `LayerEditDialog::onGamepadButton` | `QueuedConnection`（显式） | 模态对话框内更新列表高亮，必须在主线程 |
 
+**线程模型时序（PlantUML 时序图）**：
+
+```plantuml
+@startuml
+!theme plain
+autonumber
+title 线程模型 - 信号流与关键时序
+
+actor 玩家
+participant "手柄轮询线程\nXInputGamepadSource" as GP
+participant "映射引擎\nSteamInput" as SI
+participant "键鼠执行器\nKeyboardMouseMapper" as KM
+participant "look 线程\nKeyboardMouseMapper" as LOOK
+participant "注入器\nWindowsInputInjector" as INJ
+participant "主线程(GUI)\nMainWindow / OverlayWidget" as MAIN
+database "前台窗口\n(目标游戏)" as GAME
+
+== 启动（主线程）==
+MAIN -> GP : start() 开启 125Hz 轮询
+MAIN -> KM : start() 启动 look 线程
+LOOK -> KM : lookLoop() 固定 8ms 节拍
+
+== 按键事件（轮询线程，DirectConnection 链）==
+loop 每 8ms
+  GP -> GP : XInputGetState()
+end
+GP -> SI : buttonChanged(RB, true)  [Direct]
+SI -> SI : getEffectiveMapping() 层栈回退查询
+SI -> KM : buttonMapped(RB, F12)  [Direct | Unique]
+KM -> INJ : sendKeyDown(F12)
+INJ -> INJ : lock(mutex_) 状态去重 + 扫描码转换
+INJ -> GAME : SendInput(SCANCODE F12)
+SI -> MAIN : layerChanged / buttonMapped  [Auto→Queued]
+MAIN -> MAIN : 刷新层按钮 / 悬浮窗按下高亮
+
+== 右摇杆视角（并行，look 线程）==
+par look 线程独立执行
+  loop 每 8ms
+    LOOK -> LOOK : 读 latestLookX/Y 原子量
+    LOOK -> LOOK : 幅值钳制 → 加速度曲线(pow) → EMA 平滑
+    LOOK -> LOOK : 位移积分(480px/s, 计入 dt)
+    LOOK -> INJ : sendMouseMove(dx, dy)
+    INJ -> GAME : SendInput(MOUSEEVENTF_MOVE)
+  end
+end
+
+== 松开（精确释放，按已注入状态）==
+GP -> SI : buttonChanged(RB, false)  [Direct]
+SI -> KM : buttonMapped(RB, release)  [Direct | Unique]
+KM -> KM : releaseButtonInjection()
+KM -> INJ : sendKeyUp(F12)
+INJ -> GAME : SendInput(KEYUP)
+
+== 兜底释放 ==
+MAIN -> KM : releaseAllInputs()  [停止 / 切前台 200ms 检测]
+GP -> KM : connectedChanged(false)  [Direct] 手柄断开
+KM -> KM : lock(stateMutex_) 清空按下/锁存状态
+KM -> INJ : releaseAll()
+INJ -> GAME : 全部 KEYUP / MOUSEUP
+@enduml
+```
+
 **为什么注入必须用 DirectConnection**：
 若 `buttonMapped → mapper` 用默认 AutoConnection（接收者在主线程）会变成 QueuedConnection，所有注入都排队到主线程执行。一旦注入的鼠标按下恰好落在本程序自身标题栏上，Windows 会进入非客户区模态追踪循环阻塞主线程，后续松开事件排不进事件队列 → 鼠标卡死、UI 冻结。DirectConnection 让轮询线程直接执行注入，即使主线程被模态循环占用，轮询线程仍能发出松开事件解除循环。
 
@@ -178,13 +373,30 @@ build\GamepadControllerQt.exe   # 或 build-qt6\GamepadControllerQt.exe
 - `WindowsInputInjector::mutex_`（QMutex）：保护注入器的按键去重集合与亚像素鼠标余量；轮询线程、look 线程、主线程并发调用均安全。
 - `std::atomic`：`running_`、右摇杆最新值 `latestLookX/Y`、视角参数（灵敏度/平滑/加速度）——look 线程无锁读取。
 
-**关键时序（右摇杆视角）**：
+**look 线程流水线（PlantUML 活动图）**：
 
-```
-轮询线程（125Hz）：stickChanged ─Direct─► SteamInput.handleStickInput ─► stickMapped ─Direct─► onStickMapped
-                                                          │
-                                                          ▼ 只写原子量 latestLookX/Y（不注入）
-look 线程（固定 8ms 节拍）：读取 latestLookX/Y ─► 幅值钳制 ─► 加速度曲线(pow) ─► EMA 平滑 ─► 位移积分(480px/s) ─► sendMouseMove
+```plantuml
+@startuml
+!theme plain
+title look 线程 8ms 节拍流水线
+
+start
+repeat :等待 8ms 节拍 (timeBeginPeriod(1) 提高计时精度);
+if (手柄已连接 且 映射已启动?) then (是)
+  :读取 latestLookX/Y (std::atomic 无锁);
+  :幅值钳制到 [-1, 1];
+  :加速度曲线 (pow) 放大得到目标速度;
+  :EMA 平滑 (alpha 由灵敏度决定);
+  :位移积分 dx = vx * dt  (dt 限 0.001~0.05s);
+  :sendMouseMove(dx, dy) → SendInput(MOUSEEVENTF_MOVE);
+  :亚像素余量累计 (注入器内部);
+else (否)
+  :空转 (不注入任何移动);
+endif
+repeat while (线程运行中)
+
+stop
+@enduml
 ```
 
 look 线程用 `timeBeginPeriod(1)` 提高系统计时器分辨率保证 8ms 节拍；实际处理耗时计入 dt（限 0.001~0.05s），作为位移积分的时间基准，避免节拍抖动导致视角速度不稳。
