@@ -30,6 +30,10 @@ fn main() {
 
     // ---- 2. 启动 GUI ----
     Application::new().run(move |cx: &mut App| {
+        // gpui-component 组件（输入框等）依赖全局 Theme，必须先初始化，
+        // 否则渲染 Input 时会 panic（"no state of type Theme exists"）
+        gpui_component::theme::init(cx);
+
         // 所有窗口关闭后退出
         // App 级订阅必须永久存活：若被 drop 则回调被取消，关窗后程序无法退出
         std::mem::forget(cx.on_window_closed(|cx| {

@@ -346,9 +346,9 @@ impl Render for MainWindowView {
         };
         let status_color = if self.connected { OK } else { TEXT_FAINT };
 
-        // ---- 操作集 chip 行 ----
-        let mut set_row = div().flex().flex_row().gap_2().items_center();
-        set_row = set_row.child(
+        // ---- 操作集 chip 行（可换行，避免与右侧面板重叠）----
+        let mut chips_row = div().flex().flex_row().flex_wrap().gap_2().items_center();
+        chips_row = chips_row.child(
             div()
                 .flex_shrink_0()
                 .text_sm()
@@ -375,7 +375,7 @@ impl Render for MainWindowView {
                     }),
                 )
                 .child(name.clone());
-            set_row = set_row.child(chip);
+            chips_row = chips_row.child(chip);
         }
 
         // ---- 操作集管理按钮 ----
@@ -410,7 +410,9 @@ impl Render for MainWindowView {
                 cx.notify();
             }),
         );
-        set_row = set_row
+        // ---- 操作集管理按钮行（独立一行，不与 chips 挤压）----
+        let mut action_row = div().flex().flex_row().flex_wrap().gap_2().items_center();
+        action_row = action_row
             .child(btn_add)
             .child(btn_copy)
             .child(btn_rename)
@@ -681,14 +683,15 @@ impl Render for MainWindowView {
                                     .text_color(rgb(TEXT_DIM))
                                     .child("操作集管理"),
                             )
-                            .child(set_row)
+                            .child(chips_row)
+                            .child(action_row)
                             .child(layer_col),
                     )
                     .child(
                         div()
                             .flex()
                             .flex_col()
-                            .w(px(320.0))
+                            .flex_grow()
                             .gap_3()
                             .p_3()
                             .bg(rgb(BG_PANEL))

@@ -1,0 +1,35 @@
+[package]
+name = "gamepad_controler_rust"
+version = "0.0.1"
+edition = "2021"
+
+# Windows 原生手柄 -> 键鼠映射器（Dioxus GUI 版）
+# 复刻 L:\GamepadControlerQt（Qt Widgets 版）的全部功能
+# 由 GamepadControlerRustGpui（gpui 版）移植而来
+
+[dependencies]
+# Windows API：XInput 读取 + SendInput 注入
+windows = { version = "0.62", features = [
+    "Win32_Devices_HumanInterfaceDevice",
+    "Win32_Foundation",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Input_XboxController",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_LibraryLoader",
+] }
+
+# 配置 JSON 读写
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# GUI：Dioxus（React 风格声明式 UI，桌面端基于 WebView）
+dioxus = { version = "0.6", features = ["desktop"] }
+
+# 异步流扩展：use_coroutine 接收消息需要 StreamExt（rx.next().await）
+futures-util = "0.3"
+
+# 日志
+log = "0.4"
+
+[profile.release]
+opt-level = 3
