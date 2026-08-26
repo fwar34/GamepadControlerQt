@@ -1,0 +1,693 @@
+// =====================================================================
+// main.slint —— 主窗口 UI（Slint）
+//
+// 深色主题，配色与 Qt / gpui / Dioxus / Tauri 版一致：
+//   BG_DEEP #232529 / BG #2b2d31 / PANEL #2f3136 / INSET #33363b
+//   BORDER #3f434a / TEXT #e8eaee / DIM #a3a8b2 / FAINT #6c727c
+//   ACCENT #7fc9c4 / WARN #f0a34a / DANGER #e5554f / OK #4fc08d
+//
+// 三个视图由 current-view 切换：0=主视图 1=层编辑 2=帮助
+// 所有可点击元素均为自定义 Rectangle 组件（深色风格统一）。
+// =====================================================================
+
+// ---- 列表项数据结构（Rust 侧填充） ----
+export struct SetItem {
+    id: string,
+    name: string,
+    active: bool,
+}
+
+export struct LayerItem {
+    id: string,
+    name: string,
+    active: bool,
+}
+
+export struct ButtonItem {
+    name: string,
+    display: string,
+    pressed: bool,
+    selected: bool,
+}
+
+export struct KeyItem {
+    key: string,
+    label: string,
+    active: bool,
+}
+
+// ---- 通用 chip 按钮（操作集/层/按键/子命令等） ----
+component Chip inherits Rectangle {
+    in property <string> text: "";
+    in property <bool> active: false;
+    in property <color> active-bg: #7fc9c4;
+    in property <color> active-fg: #232529;
+    in property <color> idle-bg: #33363b;
+    in property <color> idle-fg: #e8eaee;
+    callback clicked;
+    height: 30px;
+    background: root.active ? root.active-bg : root.idle-bg;
+    border-radius: 6px;
+    TouchArea {
+        clicked => { root.clicked(); }
+    }
+    Text {
+        text: root.text;
+        color: root.active ? root.active-fg : root.idle-fg;
+        font-size: 13px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+}
+
+// ---- 普通操作按钮 ----
+component ActionBtn inherits Rectangle {
+    in property <bool> danger: false;
+    in property <string> text: "";
+    callback clicked;
+    height: 30px;
+    background: root.danger ? #e5554f : #33363b;
+    border-width: 1px;
+    border-color: root.danger ? #e5554f : #3f434a;
+    border-radius: 6px;
+    TouchArea {
+        clicked => { root.clicked(); }
+    }
+    Text {
+        text: root.text;
+        color: root.danger ? #232529 : #e8eaee;
+        font-size: 13px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+}
+
+// ---- 开始/停止映射大按钮 ----
+component ToggleBtn inherits Rectangle {
+    in property <bool> running: false;
+    in property <string> text: "";
+    callback clicked;
+    height: 36px;
+    background: root.running ? #e5554f : #7fc9c4;
+    border-radius: 6px;
+    TouchArea {
+        clicked => { root.clicked(); }
+    }
+    Text {
+        text: root.text;
+        color: #232529;
+        font-size: 15px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+}
+
+// ---- 全局设置行（标签 + 减号 + 值 + 加号） ----
+component SettingRow inherits HorizontalLayout {
+    in property <string> label: "";
+    in property <string> value: "";
+    in property <string> key: "";
+    callback adjust(string, float);
+    spacing: 8px;
+
+    Text {
+        text: root.label;
+        width: 92px;
+        color: #a3a8b2;
+        font-size: 13px;
+        vertical-alignment: center;
+    }
+    Chip {
+        text: "−";
+        width: 26px;
+        height: 26px;
+        border-radius: 4px;
+        clicked => { root.adjust(root.key, -0.01); }
+    }
+    Text {
+        text: root.value;
+        width: 56px;
+        color: #e8eaee;
+        font-size: 13px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    Chip {
+        text: "+";
+        width: 26px;
+        height: 26px;
+        border-radius: 4px;
+        clicked => { root.adjust(root.key, 0.01); }
+    }
+}
+
+// =====================================================================
+// 主窗口
+// =====================================================================
+export component MainWindow inherits Window {
+    title: "Gamepad 键鼠映射";
+    width: 920px;
+    height: 720px;
+    background: #2b2d31;
+
+    // ---- 视图切换 ----
+    in property <int> current-view: 0;   // 0 主视图 / 1 层编辑 / 2 帮助
+
+    // ---- 主视图数据 ----
+    in property <bool> connected: false;
+    in property <bool> running: false;
+    in property <string> status-text: "○ 手柄未连接";
+    in property <string> set-name: "默认操作集";
+    in property <string> layer-name: "公共层";
+    in property <string> mouse-toggle-text: "无长按锁存";
+    in property <bool> mouse-toggle: false;
+    in property <string> toggle-text: "开始映射";
+    in property <string> overlay-btn-text: "显示悬浮窗";
+    in property <bool> rename-visible: false;
+    in property <string> rename-hint: "";
+    in property <string> rename-value: "";
+    in property <string> deadzone: "0.00";
+    in property <string> sensitivity: "0.00";
+    in property <string> smoothing: "0.00";
+    in property <string> acceleration: "0.00";
+    in property <[SetItem]> sets: [];
+    in property <[LayerItem]> layers: [];
+
+    // ---- 层编辑数据 ----
+    in property <string> edit-title: "编辑层";
+    in property <string> edit-current: "当前: A键（无映射）";
+    in property <string> edit-kind: "keyboard";
+    in property <string> edit-subs-label: "子命令（最多3个，当前: 无子命令）";
+    in property <[ButtonItem]> edit-buttons: [];
+    in property <[KeyItem]> edit-kinds: [];
+    in property <[KeyItem]> keys1: [];
+    in property <[KeyItem]> keys2: [];
+    in property <[KeyItem]> keys3: [];
+    in property <[KeyItem]> keys4: [];
+    in property <[KeyItem]> edit-mouse: [];
+    in property <[KeyItem]> edit-layers: [];
+    in property <[KeyItem]> subs1: [];
+    in property <[KeyItem]> subs2: [];
+    in property <[KeyItem]> subs3: [];
+    in property <[KeyItem]> subs4: [];
+
+    // ---- 回调 ----
+    callback switch-set(string);
+    callback add-set();
+    callback start-copy();
+    callback start-rename();
+    callback commit-rename();
+    callback cancel-rename();
+    callback delete-set();
+    callback rename-input-changed(string);
+    callback toggle-mapping();
+    callback save-config();
+    callback reset-config();
+    callback toggle-overlay();
+    callback open-help();
+    callback quit();
+    callback adjust(string, float);
+    callback open-edit(string);
+    callback edit-back();
+    callback edit-clear();
+    callback select-button(string);
+    callback set-kind(string);
+    callback set-key(string);
+    callback set-mouse(string);
+    callback set-layer(string);
+    callback toggle-sub(string);
+    callback help-back();
+
+    VerticalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        padding-top: 14px;
+        padding-bottom: 14px;
+        spacing: 8px;
+
+        // ============================ 主视图 ============================
+        if root.current-view == 0 : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: 8px;
+
+            // 标题行
+            HorizontalLayout {
+                vertical-stretch: 0;
+                spacing: 8px;
+
+                Text {
+                    text: "Gamepad 键鼠映射";
+                    font-size: 20px;
+                    font-weight: 700;
+                    color: #e8eaee;
+                    vertical-alignment: center;
+                }
+                Rectangle { horizontal-stretch: 1; }
+
+                Rectangle {
+                    width: 10px;
+                    height: 10px;
+                    border-radius: 5px;
+                    background: root.connected ? #4fc08d : #6c727c;
+                }
+                Text {
+                    text: root.status-text;
+                    font-size: 13px;
+                    color: root.connected ? #a3a8b2 : #6c727c;
+                    vertical-alignment: center;
+                }
+            }
+
+            // 重命名 / 复制输入行
+            if root.rename-visible : HorizontalLayout {
+                vertical-stretch: 0;
+                spacing: 8px;
+
+                Text {
+                    text: root.rename-hint;
+                    color: #a3a8b2;
+                    font-size: 13px;
+                    vertical-alignment: center;
+                }
+                Rectangle {
+                    horizontal-stretch: 1;
+                    height: 32px;
+                    background: #33363b;
+                    border-width: 1px;
+                    border-color: #4a4e55;
+                    border-radius: 6px;
+
+                    HorizontalLayout {
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        input := TextInput {
+                            text: root.rename-value;
+                            single-line: true;
+                            color: #e8eaee;
+                            font-size: 13px;
+                            vertical-alignment: center;
+                            edited() => { root.rename-input-changed(input.text); }
+                        }
+                    }
+                }
+                ActionBtn {
+                    text: "确定";
+                    width: 64px;
+                    clicked => { root.commit-rename(); }
+                }
+                ActionBtn {
+                    text: "取消";
+                    width: 64px;
+                    clicked => { root.cancel-rename(); }
+                }
+            }
+
+            // 主体：左栏 + 右栏
+            HorizontalLayout {
+                vertical-stretch: 1;
+                spacing: 12px;
+
+                // ---- 左栏：操作集管理 ----
+                Rectangle {
+                    width: 260px;
+                    background: #2f3136;
+                    border-radius: 10px;
+
+                    VerticalLayout {
+                        padding-left: 12px;
+                        padding-right: 12px;
+                        padding-top: 12px;
+                        padding-bottom: 12px;
+                        spacing: 10px;
+
+                        Text {
+                            text: "操作集管理";
+                            color: #a3a8b2;
+                            font-size: 13px;
+                        }
+                        HorizontalLayout {
+                            spacing: 6px;
+                            for s in root.sets : Chip {
+                                text: s.name;
+                                active: s.active;
+                                horizontal-stretch: 1;
+                                clicked => { root.switch-set(s.id); }
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 6px;
+                            ActionBtn {
+                                text: "添加";
+                                horizontal-stretch: 1;
+                                clicked => { root.add-set(); }
+                            }
+                            ActionBtn {
+                                text: "复制";
+                                horizontal-stretch: 1;
+                                clicked => { root.start-copy(); }
+                            }
+                            ActionBtn {
+                                text: "重命名";
+                                horizontal-stretch: 1;
+                                clicked => { root.start-rename(); }
+                            }
+                            ActionBtn {
+                                text: "删除";
+                                horizontal-stretch: 1;
+                                danger: true;
+                                clicked => { root.delete-set(); }
+                            }
+                        }
+                        VerticalLayout {
+                            vertical-stretch: 1;
+                            spacing: 6px;
+                            for l in root.layers : Chip {
+                                text: l.name;
+                                active: l.active;
+                                idle-bg: #2b2d31;
+                                clicked => { root.open-edit(l.id); }
+                            }
+                        }
+                    }
+                }
+
+                // ---- 右栏：信息 + 设置 + 操作 ----
+                Rectangle {
+                    horizontal-stretch: 1;
+                    background: #2f3136;
+                    border-radius: 10px;
+
+                    VerticalLayout {
+                        padding-left: 12px;
+                        padding-right: 12px;
+                        padding-top: 12px;
+                        padding-bottom: 12px;
+                        spacing: 10px;
+
+                        Text {
+                            text: "当前操作集: " + root.set-name;
+                            font-size: 16px;
+                            color: #e8eaee;
+                        }
+                        Text {
+                            text: "当前层: " + root.layer-name;
+                            font-size: 16px;
+                            color: #e8eaee;
+                        }
+                        Text {
+                            text: root.mouse-toggle-text;
+                            font-size: 13px;
+                            color: root.mouse-toggle ? #f0a34a : #6c727c;
+                        }
+                        Text {
+                            text: "全局设置";
+                            color: #a3a8b2;
+                            font-size: 13px;
+                        }
+                        SettingRow {
+                            label: "死区";
+                            value: root.deadzone;
+                            key: "deadzone";
+                            adjust(k, d) => { root.adjust(k, d); }
+                        }
+                        SettingRow {
+                            label: "视角灵敏度";
+                            value: root.sensitivity;
+                            key: "look_sensitivity";
+                            adjust(k, d) => { root.adjust(k, d); }
+                        }
+                        SettingRow {
+                            label: "视角平滑";
+                            value: root.smoothing;
+                            key: "look_smoothing";
+                            adjust(k, d) => { root.adjust(k, d); }
+                        }
+                        SettingRow {
+                            label: "视角加速";
+                            value: root.acceleration;
+                            key: "look_acceleration";
+                            adjust(k, d) => { root.adjust(k, d); }
+                        }
+                        Rectangle { height: 2px; }
+
+                        HorizontalLayout {
+                            spacing: 6px;
+                            ToggleBtn {
+                                text: root.toggle-text;
+                                running: root.running;
+                                clicked => { root.toggle-mapping(); }
+                            }
+                            ActionBtn {
+                                text: "保存配置";
+                                horizontal-stretch: 1;
+                                clicked => { root.save-config(); }
+                            }
+                            ActionBtn {
+                                text: "重置默认";
+                                horizontal-stretch: 1;
+                                clicked => { root.reset-config(); }
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 6px;
+                            ActionBtn {
+                                text: root.overlay-btn-text;
+                                horizontal-stretch: 1;
+                                clicked => { root.toggle-overlay(); }
+                            }
+                            ActionBtn {
+                                text: "使用说明";
+                                horizontal-stretch: 1;
+                                clicked => { root.open-help(); }
+                            }
+                            ActionBtn {
+                                text: "退出";
+                                horizontal-stretch: 1;
+                                clicked => { root.quit(); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ============================ 层编辑视图 ============================
+        if root.current-view == 1 : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: 12px;
+
+            HorizontalLayout {
+                vertical-stretch: 0;
+                spacing: 12px;
+                Text {
+                    text: root.edit-title;
+                    font-size: 17px;
+                    font-weight: 600;
+                    color: #e8eaee;
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                }
+                ActionBtn {
+                    text: "返回";
+                    width: 72px;
+                    clicked => { root.edit-back(); }
+                }
+            }
+
+            HorizontalLayout {
+                vertical-stretch: 1;
+                spacing: 16px;
+
+                // 左：手柄按钮列表
+                Rectangle {
+                    width: 200px;
+                    background: #2f3136;
+                    border-radius: 10px;
+
+                    VerticalLayout {
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        padding-top: 10px;
+                        padding-bottom: 10px;
+                        spacing: 4px;
+                        for b in root.edit-buttons : Chip {
+                            text: b.display;
+                            active: b.selected;
+                            idle-bg: b.pressed ? #f0a34a : #33363b;
+                            idle-fg: b.pressed ? #232529 : #e8eaee;
+                            height: 28px;
+                            border-radius: 5px;
+                            clicked => { root.select-button(b.name); }
+                        }
+                    }
+                }
+
+                // 右：编辑区
+                Rectangle {
+                    horizontal-stretch: 1;
+                    background: #2f3136;
+                    border-radius: 10px;
+
+                    VerticalLayout {
+                        padding-left: 12px;
+                        padding-right: 12px;
+                        padding-top: 12px;
+                        padding-bottom: 12px;
+                        spacing: 10px;
+
+                        HorizontalLayout {
+                            spacing: 10px;
+                            Text {
+                                text: root.edit-current;
+                                color: #a3a8b2;
+                                font-size: 13px;
+                                horizontal-stretch: 1;
+                                vertical-alignment: center;
+                            }
+                            ActionBtn {
+                                text: "清除映射";
+                                width: 90px;
+                                danger: true;
+                                clicked => { root.edit-clear(); }
+                            }
+                        }
+                        Text {
+                            text: "动作类型";
+                            color: #a3a8b2;
+                            font-size: 13px;
+                        }
+                        GridLayout {
+                            spacing: 6px;
+                            Row {
+                                for k in root.edit-kinds : Chip {
+                                    text: k.label;
+                                    active: k.active;
+                                    clicked => { root.set-kind(k.key); }
+                                }
+                            }
+                        }
+
+                        // 目标区（随动作类型切换）
+                        if root.edit-kind == "keyboard" : VerticalLayout {
+                            spacing: 6px;
+                            Text { text: "选择按键"; color: #a3a8b2; font-size: 13px; }
+                            GridLayout {
+                                spacing: 6px;
+                                Row { for k in root.keys1 : Chip { text: k.label; clicked => { root.set-key(k.key); } } }
+                                Row { for k in root.keys2 : Chip { text: k.label; clicked => { root.set-key(k.key); } } }
+                                Row { for k in root.keys3 : Chip { text: k.label; clicked => { root.set-key(k.key); } } }
+                                Row { for k in root.keys4 : Chip { text: k.label; clicked => { root.set-key(k.key); } } }
+                            }
+                        }
+                        if root.edit-kind == "mouse" || root.edit-kind == "mousetoggle" : VerticalLayout {
+                            spacing: 6px;
+                            Text { text: "选择鼠标键"; color: #a3a8b2; font-size: 13px; }
+                            HorizontalLayout {
+                                spacing: 6px;
+                                for k in root.edit-mouse : Chip {
+                                    text: k.label;
+                                    horizontal-stretch: 1;
+                                    clicked => { root.set-mouse(k.key); }
+                                }
+                            }
+                        }
+                        if root.edit-kind == "switchlayer" : VerticalLayout {
+                            spacing: 6px;
+                            Text { text: "选择目标层"; color: #a3a8b2; font-size: 13px; }
+                            HorizontalLayout {
+                                spacing: 6px;
+                                for k in root.edit-layers : Chip {
+                                    text: k.label;
+                                    horizontal-stretch: 1;
+                                    clicked => { root.set-layer(k.key); }
+                                }
+                            }
+                        }
+                        if root.edit-kind == "wheelup" || root.edit-kind == "wheeldown"
+                            || root.edit-kind == "lookaround" || root.edit-kind == "mousemove" : Text {
+                            text: "该动作无需额外目标，点击上方类型即生效";
+                            color: #6c727c;
+                            font-size: 13px;
+                        }
+
+                        Text {
+                            text: root.edit-subs-label;
+                            color: #a3a8b2;
+                            font-size: 13px;
+                        }
+                        GridLayout {
+                            spacing: 6px;
+                            Row { for k in root.subs1 : Chip { text: k.label; active: k.active; active-bg: #5aa39f; clicked => { root.toggle-sub(k.key); } } }
+                            Row { for k in root.subs2 : Chip { text: k.label; active: k.active; active-bg: #5aa39f; clicked => { root.toggle-sub(k.key); } } }
+                            Row { for k in root.subs3 : Chip { text: k.label; active: k.active; active-bg: #5aa39f; clicked => { root.toggle-sub(k.key); } } }
+                            Row { for k in root.subs4 : Chip { text: k.label; active: k.active; active-bg: #5aa39f; clicked => { root.toggle-sub(k.key); } } }
+                        }
+                        Text {
+                            text: "说明：切层动作由公共层的 SwitchLayer 映射驱动；操作层子命令用于组合键（如 Ctrl+1）。";
+                            color: #6c727c;
+                            font-size: 13px;
+                        }
+                    }
+                }
+            }
+        }
+
+        // ============================ 帮助视图 ============================
+        if root.current-view == 2 : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: 12px;
+
+            HorizontalLayout {
+                vertical-stretch: 0;
+                spacing: 12px;
+                Text {
+                    text: "Gamepad 键鼠映射 · 使用说明";
+                    font-size: 20px;
+                    font-weight: 700;
+                    color: #e8eaee;
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                }
+                ActionBtn {
+                    text: "返回";
+                    width: 72px;
+                    clicked => { root.help-back(); }
+                }
+            }
+
+            VerticalLayout {
+                vertical-stretch: 1;
+                spacing: 14px;
+
+                VerticalLayout {
+                    spacing: 4px;
+                    Text { text: "一、快速上手"; font-size: 16px; font-weight: 600; color: #7fc9c4; }
+                    Text { text: "1. 连接手柄，点击「开始映射」。\n2. 默认配置已含一个「默认操作集」，公共层绑定基础按键（A=空格、B=右键、X=左键、Y=I、菜单键=Esc、视图键=M）。\n3. 右摇杆 = 视角控制，左摇杆 = WASD 移动。"; font-size: 14px; color: #e8eaee; }
+                }
+                VerticalLayout {
+                    spacing: 4px;
+                    Text { text: "二、操作集与层映射"; font-size: 16px; font-weight: 600; color: #7fc9c4; }
+                    Text { text: "操作集是最高层容器，每个操作集内包含 1 个公共层 + 最多 10 个操作层。\n切换操作集时，其下所有层整体切换（适合不同游戏/场景一键切换整套配置）。\n• 添加：新建空操作集（默认名可再改）。\n• 复制：把当前操作集整体复制为新操作集，可直接改名。\n• 重命名：修改当前操作集的自定义名字。\n• 删除：至少保留一个操作集。\n悬浮窗始终显示当前操作集名称。"; font-size: 14px; color: #e8eaee; }
+                }
+                VerticalLayout {
+                    spacing: 4px;
+                    Text { text: "三、层切换机制"; font-size: 16px; font-weight: 600; color: #7fc9c4; }
+                    Text { text: "操作层由公共层的「切层」(SwitchLayer) 映射驱动：按住切层键激活目标层，松开自动回退。\n按键查询顺序：最后激活的操作层 → 较早的操作层 → 公共层（兜底）。"; font-size: 14px; color: #e8eaee; }
+                }
+                VerticalLayout {
+                    spacing: 4px;
+                    Text { text: "四、悬浮窗"; font-size: 16px; font-weight: 600; color: #7fc9c4; }
+                    Text { text: "「显示悬浮窗」打开置顶透明信息窗，实时显示：当前操作集、当前层、连接状态、按下的手柄按键。\n当鼠标长按锁存（MouseToggle）激活时，悬浮窗边框变橙色并显示警示。"; font-size: 14px; color: #e8eaee; }
+                }
+                VerticalLayout {
+                    spacing: 4px;
+                    Text { text: "五、配置文件"; font-size: 16px; font-weight: 600; color: #7fc9c4; }
+                    Text { text: "配置文件 steamlike_config.json 位于程序同目录，绿色便携。与安卓版格式兼容（version=2）。"; font-size: 14px; color: #e8eaee; }
+                }
+            }
+        }
+    }
+}

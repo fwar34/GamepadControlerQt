@@ -1,0 +1,283 @@
+// =====================================================================
+// overlay.slint —— 悬浮窗 UI（独立置顶透明窗口）
+//
+// 显示当前操作集 / 当前层 / 连接状态 / 按下按键 / L3 锁存警示，
+// 点击标题或展开按钮可展开查看当前层映射列表（同时窗口加高）。
+// 标题行可拖动窗口；窗口置顶/透明/无边框在 Rust 侧与 Window 属性配置。
+//
+// 说明：std-widgets 按钮不支持自定义颜色，故全部使用自绘 Rectangle
+// 组件（MiniBtn / chip），配色与 main.slint 一致。
+// =====================================================================
+
+export struct OverlayMapItem {
+    button: string,
+    desc: string,
+    held: bool,
+}
+
+// ---- 迷你按钮（展开/收起）----
+component MiniBtn inherits Rectangle {
+    in property <string> text: "";
+    in property <bool> accent: false;
+    callback clicked;
+    width: 52px;
+    height: 26px;
+    background: root.accent ? #7fc9c4 : #33363b;
+    border-width: 1px;
+    border-color: root.accent ? #7fc9c4 : #3f434a;
+    border-radius: 5px;
+    TouchArea {
+        clicked => { root.clicked(); }
+    }
+    Text {
+        text: root.text;
+        color: root.accent ? #232529 : #e8eaee;
+        font-size: 12px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+}
+
+// ---- 按下按键 chip ----
+component PressedChip inherits Rectangle {
+    in property <string> text: "";
+    height: 22px;
+    background: #7fc9c4;
+    border-radius: 4px;
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+        Text {
+            text: root.text;
+            color: #232529;
+            font-size: 13px;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component OverlayWindow inherits Window {
+    title: "手柄悬浮窗";
+    width: 320px;
+    height: 220px;
+    background: #00000000;
+    no-frame: true;
+    always-on-top: true;
+
+    // ---- 数据 ----
+    in property <string> set-name: "操作集: --";
+    in property <string> layer-name: "当前层: --";
+    in property <bool> connected: false;
+    in property <bool> mouse-toggle: false;
+    in property <bool> expanded: false;
+    in property <string> toggle-text: "展开";
+    // 按下按键分 4 行（GridLayout 无自动换行，Rust 侧拆分填充）
+    in property <[string]> pressed1: [];
+    in property <[string]> pressed2: [];
+    in property <[string]> pressed3: [];
+    in property <[string]> pressed4: [];
+    in property <[OverlayMapItem]> mappings: [];
+
+    // ---- 回调 ----
+    callback toggle-expand();
+    callback drag-by(length, length);
+
+    property <bool> has-pressed: root.pressed1.length > 0
+        || root.pressed2.length > 0
+        || root.pressed3.length > 0
+        || root.pressed4.length > 0;
+
+    VerticalLayout {
+        padding: 4px;
+
+        Rectangle {
+            background: #2b2d31d9;      // 半透明深色卡片
+            border-radius: 10px;
+            border-width: 1px;
+            border-color: root.mouse-toggle ? #f0a34a : #7fc9c4;
+
+            VerticalLayout {
+                padding-left: 12px;
+                padding-right: 12px;
+                padding-top: 10px;
+                padding-bottom: 10px;
+                spacing: 8px;
+
+                // 标题行：可拖动，单击切换展开/收起
+                HorizontalLayout {
+                    spacing: 8px;
+                    vertical-stretch: 0;
+
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        height: 26px;
+
+                        TouchArea {
+                            property <bool> dragging: false;
+                            property <bool> dragged: false;
+                            property <length> start-x: 0px;
+                            property <length> start-y: 0px;
+
+                            pointer-event(event) => {
+                                if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
+                                    self.dragging = true;
+                                    self.dragged = false;
+                                    self.start-x = self.mouse-x;
+                                    self.start-y = self.mouse-y;
+                                } else if (event.kind == PointerEventKind.up) {
+                                    self.dragging = false;
+                                }
+                            }
+                            moved => {
+                                if (self.dragging) {
+                                    self.dragged = true;
+                                    root.drag-by(self.mouse-x - self.start-x, self.mouse-y - self.start-y);
+                                    self.start-x = self.mouse-x;
+                                    self.start-y = self.mouse-y;
+                                }
+                            }
+                            clicked => {
+                                if (!self.dragged) {
+                                    root.toggle-expand();
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Text {
+                                    text: root.set-name;
+                                    font-size: 15px;
+                                    color: #7fc9c4;
+                                }
+                                Text {
+                                    text: root.layer-name;
+                                    font-size: 15px;
+                                    color: #e8eaee;
+                                }
+                            }
+                        }
+                    }
+                    MiniBtn {
+                        text: root.toggle-text;
+                        clicked => { root.toggle-expand(); }
+                    }
+                }
+
+                // 连接状态
+                HorizontalLayout {
+                    vertical-stretch: 0;
+                    spacing: 6px;
+                    Rectangle {
+                        width: 10px;
+                        height: 10px;
+                        border-radius: 5px;
+                        background: root.connected ? #4fc08d : #6c727c;
+                    }
+                    Text {
+                        text: root.connected ? "手柄已连接" : "手柄未连接";
+                        color: #a3a8b2;
+                        font-size: 13px;
+                    }
+                }
+
+                // 按下按键
+                if !root.has-pressed : Text {
+                    text: "无按键按下";
+                    color: #6c727c;
+                    font-size: 13px;
+                }
+                if root.has-pressed : GridLayout {
+                    spacing: 5px;
+                    vertical-stretch: 0;
+                    Row {
+                        for p in root.pressed1 : PressedChip { text: p; }
+                    }
+                    Row {
+                        for p in root.pressed2 : PressedChip { text: p; }
+                    }
+                    Row {
+                        for p in root.pressed3 : PressedChip { text: p; }
+                    }
+                    Row {
+                        for p in root.pressed4 : PressedChip { text: p; }
+                    }
+                }
+
+                // L3 锁存警示
+                if root.mouse-toggle : Rectangle {
+                    height: 24px;
+                    background: #f0a34a;
+                    border-radius: 4px;
+                    HorizontalLayout {
+                        padding-left: 8px;
+                        padding-right: 8px;
+                        Text {
+                            text: "⚠ 鼠标长按锁存中，再按一次解除";
+                            color: #232529;
+                            font-size: 13px;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+
+                // 展开：当前层映射列表
+                if root.expanded : VerticalLayout {
+                    spacing: 4px;
+                    vertical-stretch: 1;
+
+                    Text {
+                        text: "当前层映射: " + root.layer-name;
+                        color: #a3a8b2;
+                        font-size: 13px;
+                    }
+                    if root.mappings.length == 0 : Text {
+                        text: "（无映射）";
+                        color: #6c727c;
+                        font-size: 13px;
+                    }
+                    VerticalLayout {
+                        spacing: 2px;
+                        vertical-stretch: 1;
+                        for m in root.mappings : HorizontalLayout {
+                            spacing: 8px;
+                            Text {
+                                text: m.button;
+                                color: m.held ? #f0a34a : #7fc9c4;
+                                font-size: 13px;
+                                min-width: 56px;
+                            }
+                            Text {
+                                text: "→";
+                                color: #a3a8b2;
+                                font-size: 13px;
+                            }
+                            Text {
+                                text: m.desc;
+                                color: #e8eaee;
+                                font-size: 13px;
+                            }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Text { text: "左摇杆"; color: #7fc9c4; font-size: 13px; min-width: 56px; }
+                        Text { text: "→"; color: #a3a8b2; font-size: 13px; }
+                        Text { text: "WASD 移动"; color: #e8eaee; font-size: 13px; }
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Text { text: "右摇杆"; color: #7fc9c4; font-size: 13px; min-width: 56px; }
+                        Text { text: "→"; color: #a3a8b2; font-size: 13px; }
+                        Text { text: "视角控制"; color: #e8eaee; font-size: 13px; }
+                    }
+                    Text {
+                        text: "（点击标题收起）";
+                        color: #6c727c;
+                        font-size: 13px;
+                    }
+                }
+            }
+        }
+    }
+}
