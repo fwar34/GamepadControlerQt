@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Gamepad 键鼠映射</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- ==================== 主视图 ==================== -->
+  <div id="view-main" class="root">
+    <div class="header">
+      <div class="title">Gamepad 键鼠映射</div>
+      <div class="status"><span id="status-dot" class="dot off"></span><span id="status-text">手柄未连接</span></div>
+    </div>
+
+    <!-- 重命名 / 复制输入行 -->
+    <div id="rename-row" class="rename-row" style="display:none">
+      <span id="rename-hint" class="dim">重命名操作集</span>
+      <input id="rename-input" class="rename-input" placeholder="输入名称" autocomplete="off">
+      <button class="btn" id="rename-ok">确定</button>
+      <button class="btn" id="rename-cancel">取消</button>
+    </div>
+
+    <div class="body">
+      <!-- 左栏：操作集管理 -->
+      <div class="panel left-panel">
+        <div class="panel-title">操作集管理</div>
+        <div id="set-chips" class="chips-row"></div>
+        <div class="btn-row">
+          <button class="btn" id="btn-add">添加</button>
+          <button class="btn" id="btn-copy">复制</button>
+          <button class="btn" id="btn-rename">重命名</button>
+          <button class="btn" id="btn-delete">删除</button>
+        </div>
+        <div id="layer-list" class="layer-list"></div>
+      </div>
+
+      <!-- 右栏：信息 + 设置 + 操作 -->
+      <div class="panel right-panel">
+        <div id="info-col" style="display:flex;flex-direction:column;gap:2px;"></div>
+        <div class="dim">全局设置</div>
+        <div id="settings-col" style="display:flex;flex-direction:column;gap:8px;"></div>
+        <div class="btn-row">
+          <button class="btn-toggle stopped" id="btn-toggle">开始映射</button>
+          <button class="btn" id="btn-save">保存配置</button>
+          <button class="btn" id="btn-reset">重置默认</button>
+        </div>
+        <div class="btn-row">
+          <button class="btn" id="btn-overlay">显示悬浮窗</button>
+          <button class="btn" id="btn-help">使用说明</button>
+          <button class="btn" id="btn-quit">退出</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 层编辑视图 ==================== -->
+  <div id="view-edit" class="root" style="display:none">
+    <div class="edit-header">
+      <div id="edit-title" class="edit-title">编辑层</div>
+      <button class="btn" id="edit-back">返回</button>
+    </div>
+    <div class="edit-body">
+      <div id="edit-grid" class="edit-grid"></div>
+      <div class="edit-divider"></div>
+      <div class="edit-right">
+        <div class="edit-current-row">
+          <div id="edit-current" class="dim"></div>
+          <button class="btn danger" id="edit-clear">清除映射</button>
+        </div>
+        <div class="dim">动作类型</div>
+        <div id="edit-kinds" class="chips-row"></div>
+        <div id="edit-target"></div>
+        <div id="edit-subs-label" class="dim"></div>
+        <div id="edit-subs" class="chips-row"></div>
+        <div class="faint">说明：切层动作由公共层的 SwitchLayer 映射驱动；操作层子命令用于组合键（如 Ctrl+1）。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 帮助视图 ==================== -->
+  <div id="view-help" class="root help-view" style="display:none">
+    <div class="edit-header">
+      <div class="edit-title">Gamepad 键鼠映射 · 使用说明</div>
+      <button class="btn" id="help-back">返回</button>
+    </div>
+    <div id="help-sections" class="help-sections"></div>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>

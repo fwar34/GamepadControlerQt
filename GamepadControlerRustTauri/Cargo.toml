@@ -1,0 +1,38 @@
+[package]
+name = "gamepad_controler_tauri"
+version = "0.0.1"
+edition = "2021"
+
+# Windows 原生手柄 -> 键鼠映射器（Tauri GUI 版）
+# 复刻 L:\GamepadControlerQt（Qt Widgets 版）的全部功能
+#
+# 架构：Rust 后端（核心逻辑 + Tauri 命令） + WebView 前端（原生 HTML/CSS/JS）
+#   - 前端每 50ms 轮询 get_snapshot 等命令刷新界面
+#   - 手柄轮询线程 / 视角线程与 gpui 版一致，独立于 WebView 进程
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Tauri 2：桌面 WebView 外壳（Rust 后端）
+tauri = { version = "2", features = [] }
+
+# Windows API：XInput 读取 + SendInput 注入
+windows = { version = "0.62", features = [
+    "Win32_Devices_HumanInterfaceDevice",
+    "Win32_Foundation",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Input_XboxController",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_LibraryLoader",
+] }
+
+# 配置 JSON 读写（前端 IPC 参数也需要 serde）
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# 日志
+log = "0.4"
+
+[profile.release]
+opt-level = 3

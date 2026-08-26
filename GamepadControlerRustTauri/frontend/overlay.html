@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>手柄悬浮窗</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="overlay-body">
+  <div class="overlay-card" id="overlay-card">
+    <!-- 标题行：点击或拖动；data-tauri-drag-region 允许拖动窗口 -->
+    <div class="overlay-title" id="ov-title" data-tauri-drag-region>
+      <span class="ov-set" id="ov-set">操作集: --</span>
+      <span class="ov-layer" id="ov-layer">当前层: --</span>
+      <button class="ov-toggle" id="ov-toggle">展开</button>
+    </div>
+
+    <!-- 连接状态 -->
+    <div class="overlay-row">
+      <span class="dot" id="ov-dot"></span>
+      <span class="overlay-dim" id="ov-conn">手柄未连接</span>
+    </div>
+
+    <!-- 按下按键 -->
+    <div class="overlay-pressed" id="ov-pressed"></div>
+
+    <!-- L3 锁存警示 -->
+    <div id="ov-warn" style="display:none;">
+      <div class="overlay-warn">⚠ 鼠标长按锁存中，再按一次解除</div>
+    </div>
+
+    <!-- 展开：当前层映射列表 -->
+    <div id="ov-mappings" style="display:none;">
+      <div class="overlay-dim" id="ov-map-title">当前层映射:</div>
+      <div id="ov-map-list"></div>
+      <div class="overlay-row">
+        <span class="ov-acc">左摇杆</span><span class="ov-dim">→</span><span class="ov-text">WASD 移动</span>
+      </div>
+      <div class="overlay-row">
+        <span class="ov-acc">右摇杆</span><span class="ov-dim">→</span><span class="ov-text">视角控制</span>
+      </div>
+      <div class="overlay-faint">（点击标题收起）</div>
+    </div>
+  </div>
+  <script src="overlay.js"></script>
+</body>
+</html>

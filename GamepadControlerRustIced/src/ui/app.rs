@@ -194,7 +194,7 @@ impl App {
     }
 
     pub fn theme(_app: &App) -> Theme {
-        Theme::Dark
+        Theme::TokyoNight
     }
 
     pub fn subscription(_app: &App) -> Subscription<Message> {
@@ -374,7 +374,6 @@ impl App {
             text(status_text).size(14).color(rgb(status_color)),
         ];
 
-        // 操作集 chips
         let mut chips = row![text("操作集").size(12).color(rgb(TEXT_DIM))].spacing(4);
         for (id, name) in &sets {
             let active = *id == active_set_id;
@@ -513,7 +512,15 @@ impl App {
             content
         };
 
-        column![header, input_row, Space::with_height(8), content].spacing(8).into()
+        container(column![header, input_row, Space::with_height(8), content].spacing(8))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .padding(16)
+            .style(|_| iced::widget::container::Style {
+                background: Some(Background::Color(rgb(BG))),
+                ..Default::default()
+            })
+            .into()
     }
 
     fn view_layer_edit(&self) -> Element<Message> {
