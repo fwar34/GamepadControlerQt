@@ -25,6 +25,30 @@ void SteamInput::setGlobalSettings(const GlobalSettings& settings) {
 }
 
 // ---------------------------------------------------------------
+// 操作集管理
+// ---------------------------------------------------------------
+
+// 切换当前操作集：先清空已激活层栈（旧操作集内的层指针不再有效，
+// 必须清理避免悬垂指针），再更新激活集并广播信号。
+bool SteamInput::switchOperationSet(const QString& setId) {
+    if (!profile.setActiveOperationSet(setId))
+        return false;                  // 无效 id，忽略
+    if (profile.activeOperationSetId != setId)
+        return false;                  // 不应发生，防御
+    deactivateAllLayers();             // 清空层栈，回到新操作集的公共层
+    emit profileChanged();
+    emit operationSetChanged(profile.activeOperationSetName());
+    return true;
+}
+
+// 操作集结构变化后的统一通知（新增/删除/复制/重命名已由调用方完成，
+// activeOperationSetId 已指向目标集）。调用方须先 deactivateAllLayers()。
+void SteamInput::notifyOperationSetChanged() {
+    emit profileChanged();
+    emit operationSetChanged(profile.activeOperationSetName());
+}
+
+// ---------------------------------------------------------------
 // 层管理
 // ---------------------------------------------------------------
 
@@ -103,12 +127,14 @@ QVector<const OperationLayer*> SteamInput::getActiveLayers() const {
 // 查询按钮在当前层栈下的有效映射：
 //   从最后激活的操作层（栈顶，优先级最高）开始，逐层回退到公共层，
 //   返回第一个命中的映射；全部未命中返回 nullptr（不注入任何事件）。
+// 注：层栈只属于当前激活操作集，公共层取 profile.commonLayer()。
 const KeyMapping* SteamInput::getEffectiveMapping(ControllerButton button) const {
     for (int i = activeLayers_.size() - 1; i >= 0; --i) {
         if (const KeyMapping* m = activeLayers_[i]->getMapping(button))
             return m;
     }
-    return profile.commonLayer.getMapping(button);
+    const OperationLayer* cl = profile.commonLayer();
+    return cl ? cl->getMapping(button) : nullptr;
 }
 
 // ---------------------------------------------------------------
@@ -153,10 +179,11 @@ void SteamInput::handleButtonEvent(ControllerButton button, bool isPressed) {
     // 松开时（上面分支）停用该层。注意：这里不再广播 buttonMapped。
     if (mapping->action.type == MappedAction::Type::SwitchLayer) {
         if (isPressed) {
-            // 先按 id 查找；找不到则按 name 查找（兼容旧配置）
+            // 先按 id 查找；找不到则按 name 查找（兼容旧配置）。
+            // 目标层必须属于当前激活操作集（findLayer 只查激活集）。
             OperationLayer* target = profile.findLayer(mapping->action.layerName);
             if (!target) {
-                for (OperationLayer& l : profile.layers)
+                for (OperationLayer& l : profile.layers())
                     if (l.name == mapping->action.layerName) { target = &l; break; }
             }
             if (target && !isLayerActive(target->id)) {

@@ -128,10 +128,11 @@ QComboBox* makeMouseCombo() {
 // ------------------------------------------------------------
 // makeLayerCombo：创建目标层下拉框（切换层动作）
 // ------------------------------------------------------------
+// 目标层只列出「当前激活操作集」内的操作层（切换层不出本操作集范围）。
 QComboBox* makeLayerCombo(ControllerProfile* profile) {
     QComboBox* combo = new QComboBox;
     combo->addItem(QObject::tr("无"), QString());
-    for (const OperationLayer& l : profile->layers)
+    for (const OperationLayer& l : profile->layers())
         combo->addItem(l.name, l.id);
     return combo;
 }
@@ -206,11 +207,13 @@ void LayerEditDialog::buildUi() {
     // 触发按键提示（仅操作层有）：扫描公共层中实际配置为
     // 「切换层 -> 本层」的按键，展示真正驱动进入本层的映射；
     // triggerButton 字段仅作无映射时的补充提示。
-    const bool isCommon = (layer_ == &profile_->commonLayer);
+    const bool isCommon = (layer_ == profile_->commonLayer());
     if (!isCommon) {
         QStringList triggers;
+        const OperationLayer* common = profile_->commonLayer();
         for (const ControllerButton b : allControllerButtons()) {
-            const KeyMapping* m = profile_->commonLayer.getMapping(b);
+            if (!common) break;
+            const KeyMapping* m = common->getMapping(b);
             if (m && m->action.type == MappedAction::Type::SwitchLayer
                 && m->action.layerName == copy_.id)
                 triggers.append(controllerButtonDisplayName(b));

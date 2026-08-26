@@ -37,14 +37,19 @@ XInputGamepadSource → SteamInput → KeyboardMouseMapper → Windows SendInput
 ```
 
 - **XInputGamepadSource** (`src/gamepad/`): QTimer 125Hz polling XInput, emits buttonChanged/stickChanged signals
-- **SteamInput** (`src/core/SteamInput.h`): Mapping engine — layer management + key query + input dispatch
+- **SteamInput** (`src/core/SteamInput.h`): Mapping engine — operation-set switching (`switchOperationSet`) + layer management + key query + input dispatch
 - **KeyboardMouseMapper** (`src/core/KeyboardMouseMapper.h`): Keyboard/mouse executor, owns dedicated look thread
 - **InputInjector** (`src/core/InputInjector.h`): Injector interface + Windows SendInput implementation
+
+## Data Model (three layers, top → bottom)
+
+`OperationSet` (container) → `commonLayer` + up to 10 `OperationLayer`s → per-button `KeyMapping`. `ControllerProfile` holds a list of `operationSets` plus `activeOperationSetId`. Switching an operation set swaps all layers beneath it as a whole; runtime layer queries only run inside the currently active set.
 
 ## Critical Design Rules
 
 - **KeyCode uses Android constants**: Config and core layer store Android KeyEvent values (Space=62, W=51, etc.). Runtime converts to Windows VK via `androidKeyCodeToWindowsVK()`. Never use Windows VK constants in config or core logic.
-- **Layer query order**: From last-activated operation layer back to common layer, returns first hit.
+- **Layer query order**: Inside the current active operation set, from last-activated operation layer back to common layer, returns first hit.
+- **Operation-set switch safety**: Before switching / adding / deleting operation sets, always call `deactivateAllLayers()` — `QVector<OperationSet>` growth can invalidate pointers of activated layers (dangling pointer → stuck keys / crash). Keep at least one operation set.
 - **Precise release**: Release by "injected state", not current layer mapping — prevents stuck keys on layer switch.
 - **Thread model**: Gamepad polling thread runs button/stick mapping via `Qt::DirectConnection` (no event queue); look thread runs fixed 8ms tick for mouse movement; main thread runs `releaseAllInputs` (stop / foreground switch / disconnect). A QMutex serializes injected-state access between gamepad thread and main thread; injector uses QMutex internally.
 - **Connection debounce**: 3 consecutive poll failures = disconnect; disconnect calls `releaseAllInputs()`.
@@ -64,6 +69,7 @@ CMakeLists.txt enforces UTF-8 (`-finput-charset=UTF-8 -fexec-charset=UTF-8` / `/
 
 - Path: `<exe dir>\steamlike_config.json`
 - Format: JSON version=2, compatible with Android `steamlike_config.json`
+- Root holds `activeOperationSet` + `operationSets` array (each set: `id`/`name`/`commonLayer`/`layers`). Old v2 configs (top-level `commonLayer`/`layers`) auto-wrap into a single "默认操作集" (Set1) on load.
 - `triggerButton` is UI-only display, does not affect runtime layer switching (actual switching driven by common layer's SwitchLayer mapping)
 - `.gitignore` excludes `steamlike_config.json`
 

@@ -25,7 +25,7 @@ class SteamInput : public QObject {
 public:
     explicit SteamInput(QObject* parent = nullptr);
 
-    // 当前配置（公共层 + 操作层 + 全局设置）
+    // 当前配置（操作集列表 + 当前激活操作集 + 全局设置）
     ControllerProfile profile;
 
     // 整体替换配置（启动时加载配置文件后调用），同时清空所有激活层
@@ -34,6 +34,17 @@ public:
     // 仅更新全局设置（不重置已激活层），并通知映射器同步
     // （用于界面滑块实时调整死区/灵敏度等，避免打断进行中的层切换）
     void setGlobalSettings(const GlobalSettings& settings);
+
+    // ---- 操作集管理 ----
+    // 切换当前操作集（按 id）：清空已激活层栈（不同操作集的层指针不再有效），
+    // 更新激活操作集并发出 profileChanged / operationSetChanged。
+    // id 无效或与当前相同返回 false（不产生任何副作用）。
+    bool switchOperationSet(const QString& setId);
+    // 操作集结构变化后通知（新增/删除/复制/重命名后调用，此时调用方
+    // 已把 activeOperationSetId 指向目标集）：发出 profileChanged +
+    // operationSetChanged，供界面/悬浮窗同步。调用前必须先 deactivateAllLayers，
+    // 避免 QVector 扩容使已激活层指针失效。
+    void notifyOperationSetChanged();
 
     // ---- 层管理 ----
     // 激活指定层（name 为层 id）；重复激活同一层会被忽略（见实现）
@@ -72,6 +83,8 @@ signals:
     void stickMapped(ControllerStick stick, float x, float y);
     // 当前激活层变化（未激活任何操作层时为 "Common"）
     void layerChanged(const QString& activeLayerName);
+    // 当前操作集变化（name 为显示名）
+    void operationSetChanged(const QString& name);
     // 配置被整体替换（loadProfile 或 setGlobalSettings 后触发）
     void profileChanged();
     // 切换映射启停请求（由 ToggleMapping 动作触发）

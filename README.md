@@ -10,6 +10,8 @@ Windows 本机手柄 → 键鼠映射器（Qt Widgets GUI）。参考 `L:\steaml
 
 ## 功能特性
 
+- **操作集（OperationSet）**：最顶层配置容器，由 1 个公共层 + 最多 10 个操作层组成；切换操作集时其下所有层**整体切换**，各操作集互不影响，适合为不同角色/场景各配一套方案
+- **操作集管理**：初始含一个「默认操作集」；可添加、删除、切换操作集，可重命名自定义名字；操作集可**复制**（复制时可直接改名生成新操作集）
 - **公共层 + 操作层架构**：公共层始终激活（兜底），操作层通过公共层的 `SwitchLayer` 映射「按住激活、松开回退」
 - **最多 10 个操作层**：WoW 预设（Layer1 战斗 / Layer2 骑乘 / …），显示名可自由修改
 - **子命令组合键**：每个按键映射最多 3 个子命令，实现 `Alt+3` 等组合键（按住依次按下、松开逆序释放）
@@ -17,7 +19,7 @@ Windows 本机手柄 → 键鼠映射器（Qt Widgets GUI）。参考 `L:\steaml
 - **右摇杆视角控制**：独立线程 125Hz 节拍，加速度曲线 + EMA 平滑 + 位移积分
 - **MouseToggle 长按锁存**：按住期间鼠标键保持按下（主动锁存，松开不改变状态）
 - **鼠标滚轮动作**：映射动作支持「滚轮上滚 / 滚轮下滚」，按下即注入一次滚轮事件
-- **悬浮层信息窗**：独立置顶窗口，实时显示当前层与按下的手柄按键，可拖动、主窗口最小化不隐藏；在悬浮窗上滚动鼠标滚轮可缩放窗口大小
+- **悬浮层信息窗**：独立置顶窗口，实时显示当前操作集、当前层与按下的手柄按键，可拖动、主窗口最小化不隐藏；在悬浮窗上滚动鼠标滚轮可缩放窗口大小
 - **窗口位置记忆**：主窗口位置、悬浮窗位置与缩放比例均持久化到配置，下次启动恢复
 - **配置持久化**：JSON（version=2），与安卓版 `steamlike_config.json` 格式兼容，可互换
 - **托盘行为**：最小化主窗口隐藏到系统托盘（任务栏不显示图标）；「关闭时退出程序」选项决定点关闭是退出还是最小化到托盘
@@ -33,7 +35,7 @@ GamepadControlerQt/
 │   ├── main.cpp                 # 程序入口，组装各组件
 │   ├── core/                    # 核心逻辑（无 UI 依赖）
 │   │   ├── InputTypes.h/.cpp        # 枚举/向量/名称转换（Android KeyCode 常量）
-│   │   ├── MappingTypes.h/.cpp      # 数据模型：MappedAction/KeyMapping/OperationLayer/Profile
+│   │   ├── MappingTypes.h/.cpp      # 数据模型：MappedAction/KeyMapping/OperationLayer/OperationSet/Profile
 │   │   ├── SteamInput.h/.cpp        # 映射引擎：层管理 + 按键查询 + 输入分发
 │   │   ├── InputInjector.h/.cpp     # 注入器接口 + Windows SendInput 实现 + VK 映射表
 │   │   ├── KeyboardMouseMapper.h/.cpp  # 键鼠执行器：按钮/子命令/WASD/右摇杆视角线程
@@ -93,25 +95,44 @@ build\GamepadControllerQt.exe   # 或 build-qt6\GamepadControllerQt.exe
 
 ## 架构与数据流
 
-整体是单向数据流，手柄输入经过「读取 → 映射 → 执行 → 注入」四段流水线，不存在反向依赖：
+整体是单向数据流，手柄输入经过「读取 → 映射 → 执行 → 注入」四段流水线，不存在反向依赖。运行时层查询只针对**当前激活的操作集**，切换操作集即整体切换其下所有层。
 
-```
-                        ┌───────────────────────────────────────────────┐
-                        │                主线程（GUI / 事件循环）          │
-                        │  MainWindow / LayerEditDialog / OverlayWidget   │
-                        │  ConfigManager（保存/加载）/ 托盘 / 前台监控定时器 │
-                        └───────────────────────────────────────────────┘
-                                        ▲                    │
-                           layerChanged/buttonMapped 等信号    │ 启停 / releaseAllInputs
-                           （AutoConnection 转队列到主线程）     │
-                                        │                    ▼
-┌──────────────────┐ 按钮/摇杆/连接 ┌───────────────┐ buttonMapped ┌─────────────────────┐
-│ XInputGamepadSource │────────────►│   SteamInput  │─────────────►│ KeyboardMouseMapper │
-│  独立轮询线程 125Hz  │ DirectConnection │ 映射引擎（层栈）│ DirectConnection │  键鼠执行器 + look 线程 │
-└──────────────────┘              └───────────────┘              └──────────┬──────────┘
-                                                                             │ SendInput
-                                                                             ▼
-                                                                     Windows 前台窗口（目标游戏）
+**架构与数据流（PlantUML 组件图）**：
+
+```plantuml
+@startuml
+!theme plain
+skinparam componentStyle rectangle
+skinparam componentFontSize 11
+skinparam defaultFontName "Microsoft YaHei"
+
+title GamepadControllerQt 单向数据流架构
+
+' ============ 数据源（轮询线程） ============
+component "XInputGamepadSource\n独立轮询线程 125Hz\nXInputGetState" as GP
+component "SteamInput\n映射引擎\n操作集 + 层栈查询" as SI
+component "KeyboardMouseMapper\n键鼠执行器\n+ look 线程 8ms" as KM
+component "WindowsInputInjector\nSendInput" as INJ
+database "Windows 前台窗口\n(目标游戏)" as GAME
+
+' ============ 主线程（GUI） ============
+component "MainWindow\n操作集管理 / 层编辑入口\n启停 / 托盘 / 前台监控" as MAIN
+component "OverlayWidget\n悬浮信息窗" as OVERLAY
+component "LayerEditDialog\n层映射编辑（模态）" as EDIT
+component "ConfigManager\n配置读写" as CFG
+
+GP ..> SI : buttonChanged / stickChanged\nconnectedChanged
+SI ..> KM : buttonMapped / stickMapped\nprofileChanged / operationSetChanged
+KM --> INJ : 注入调用
+INJ --> GAME : SendInput()
+SI ..> MAIN : layerChanged / operationSetChanged\nprofileChanged（Auto→Queued）
+SI ..> OVERLAY : layerChanged / operationSetChanged（Auto→Queued）
+GP ..> EDIT : buttonChanged（Queued，编辑高亮）
+MAIN --> SI : switchOperationSet / 增删复制重命名
+MAIN --> KM : start / stop / releaseAllInputs
+MAIN ..> CFG : save / load
+CFG ..> SI : loadProfile（启动时）
+@enduml
 ```
 
 ### 框架模型（模块与职责）
@@ -120,13 +141,13 @@ build\GamepadControllerQt.exe   # 或 build-qt6\GamepadControllerQt.exe
 |---|---|---|
 | `main.cpp` | 组件装配、信号接线（DirectConnection）、退出清理 | 主线程 |
 | `XInputGamepadSource` | XInputGetState 125Hz 轮询，发出按钮/摇杆/连接变化信号 | 独立轮询线程 |
-| `SteamInput` | 层栈管理、有效映射查询、输入分发、SwitchLayer 运行时处理（纯核心，无 UI 依赖） | 轮询线程（信号处理） |
+| `SteamInput` | 操作集切换（`switchOperationSet`）、层栈管理、有效映射查询、输入分发、SwitchLayer 运行时处理（纯核心，无 UI 依赖） | 轮询线程（信号处理） |
 | `KeyboardMouseMapper` | 按钮/子命令组合键/WASD 移动执行；右摇杆视角（独立 look 线程） | 轮询线程 + look 线程 |
 | `WindowsInputInjector` | SendInput 注入、Android 键码 → VK/物理扫描码转换、按键状态去重 | 多线程（内部互斥） |
-| `ControllerConfig` / `ConfigManager` | JSON（version=2）序列化与配置文件读写（exe 同目录 `steamlike_config.json`） | 主线程 |
-| `MainWindow` | 主界面、层编辑入口、启停控制、全局设置、托盘、前台窗口监控 | 主线程 |
+| `ControllerConfig` / `ConfigManager` | JSON（version=2）序列化（operationSets 结构，兼容旧 v2 格式）与配置文件读写（exe 同目录 `steamlike_config.json`） | 主线程 |
+| `MainWindow` | 主界面、操作集管理（切换/添加/复制/重命名/删除）、层编辑入口、启停控制、全局设置、托盘、前台窗口监控 | 主线程 |
 | `LayerEditDialog` | 操作层映射编辑（「副本模式」：编辑副本，确定才写回；手柄按键实时高亮） | 主线程（模态） |
-| `OverlayWidget` | 悬浮信息窗（当前层/按下按键/展开映射列表/MouseToggle 锁存提示） | 主线程 |
+| `OverlayWidget` | 悬浮信息窗（当前操作集/当前层/按下按键/展开映射列表/MouseToggle 锁存提示） | 主线程 |
 | `HelpDialog` / `DarkTitleBar` | 使用说明对话框 / 深色标题栏工具 | 主线程 |
 
 **核心类关系图（PlantUML 类图）**：
@@ -154,14 +175,17 @@ class XInputGamepadSource {
 
 class SteamInput {
   +profile : ControllerProfile
-  -layerStack_ : QList<ActiveLayerEntry>
+  -activeLayers_ : QVector<OperationLayer*>
   +handleButtonEvent(btn, pressed)
   +handleStickInput(stick, x, y)
   +getEffectiveMapping(btn) : const KeyMapping*
+  +switchOperationSet(setId) : bool
+  +notifyOperationSetChanged()
   --signals--
   +buttonMapped(btn, pressed, KeyMapping)
   +stickMapped(stick, x, y)
   +layerChanged(QString)
+  +operationSetChanged(QString)
   +profileChanged()
 }
 
@@ -196,11 +220,25 @@ SteamInput ..> KeyboardMouseMapper : DirectConnection | Unique
 KeyboardMouseMapper --> InputInjector : 注入调用
 InputInjector <|.. WindowsInputInjector : 实现
 
-' ============ 数据模型 ============
+' ============ 数据模型（操作集 → 层 → 映射） ============
 class ControllerProfile {
-  +commonLayer : OperationLayer
-  +layers : QList<OperationLayer>
+  +operationSets : QVector<OperationSet>
+  +activeOperationSetId : QString
+  +activeSet() : OperationSet*
+  +commonLayer() : OperationLayer*
+  +layers() : QVector<OperationLayer>&
+  +setActiveOperationSet(id) : bool
+  +uniqueOperationSetId() : QString
   +findLayer(id) : OperationLayer*
+  +activeOperationSetName() : QString
+}
+
+class OperationSet {
+  +id : QString
+  +name : QString          // 可自定义显示名
+  +commonLayer : OperationLayer
+  +layers : QVector<OperationLayer>
+  +createEmpty(setId, setName) : OperationSet
 }
 
 class OperationLayer {
@@ -223,7 +261,8 @@ class MappedAction {
 }
 
 SteamInput o-- ControllerProfile
-ControllerProfile *-- OperationLayer : 1..10
+ControllerProfile *-- OperationSet : 1..*
+OperationSet *-- OperationLayer : common + 1..10
 OperationLayer *-- KeyMapping
 KeyMapping *-- MappedAction
 
@@ -239,6 +278,9 @@ class ConfigManager {
 
 class MainWindow {
   +onLayerChanged(layerId)
+  +onSetComboChanged(index)
+  +onAddSet() / onCopySet()
+  +onRenameSet() / onDeleteSet()
   +editLayer(layer)
   +startMapping() / stopMapping()
 }
@@ -249,6 +291,7 @@ class LayerEditDialog {
 }
 
 class OverlayWidget {
+  +setOperationSet(name)
   +setLayerName(name)
   +setHeldButtons(buttons)
   +setMouseToggleState(...)
@@ -272,7 +315,7 @@ MainWindow --> KeyboardMouseMapper : 启停 / 释放
 
 1. **KeyCode 一律使用 Android 常量**：配置与核心层保存 Android KeyEvent 值（空格=62、W=51…），运行时经 `androidKeyCodeToWindowsVK()` / `androidKeyCodeToWindowsScanCode()` 转换。绝不在配置/核心逻辑中使用 Windows VK 常量。
 2. **注入用扫描码模式**：`injectKey` 用 `KEYEVENTF_SCANCODE`（`wVk=0`、`wScan` 为物理扫描码），DirectInput / Raw Input / GetAsyncKeyState 都能读到。扫描码必须查表：数字键、F11/F12（0x57/0x58）、小键盘均**非连续**，按公式推算会错键（例如 F12 会算出 ScrollLock）。
-3. **层查询顺序**：`getEffectiveMapping` 从最后激活的操作层回退到公共层，返回第一个命中；公共层始终激活、优先级最低。
+3. **层查询顺序（仅当前操作集内）**：`getEffectiveMapping` 在**当前激活操作集**内，从最后激活的操作层回退到公共层，返回第一个命中；公共层始终激活、优先级最低。切换操作集 = 整体切换其下所有层，操作集之间互不影响。
 4. **层切换**：`SwitchLayer` 动作由引擎 `handleButtonEvent` 处理——按下激活目标层并记录触发按钮，松开停用该层并直接返回（不触发映射）。`triggerButton` 仅 UI 展示，不参与运行时切换。
 5. **精确释放**：松开按键按「已注入状态」（`releaseButtonInjection`）释放，与当前层映射无关，防止长按切层键后按键卡死。
 6. **MouseToggle 锁存**：按住期间鼠标键保持按下（用户主动锁存），松开手柄键不改变状态，再按一次解除；断开/停止/切前台时统一释放并通知 UI。
@@ -280,6 +323,7 @@ MainWindow --> KeyboardMouseMapper : 启停 / 释放
 8. **WIN32 子系统**：`add_executable(... WIN32 ...)` 无控制台窗口，调试输出走 Qt debug 或日志文件。
 9. **连接防抖**：连续 3 次轮询失败才判定断开（`MAX_CONNECTION_FAILS`），避免 USB 抖动导致状态闪烁；断开时释放全部注入。
 10. **DirectConnection**：轮询线程 → SteamInput、SteamInput → Mapper 均用 `Qt::DirectConnection` 保证低延迟（原因详见线程模型）。
+11. **操作集切换安全**：切换/新增/删除操作集前必须先 `deactivateAllLayers()`——`QVector<OperationSet>` 扩容会使已激活层的指针失效，清空层栈避免悬垂指针导致按键卡死或崩溃；删除操作集至少保留一个。
 
 ### 线程模型
 
@@ -298,7 +342,7 @@ MainWindow --> KeyboardMouseMapper : 启停 / 释放
 | 手柄 `buttonChanged`/`stickChanged` → `SteamInput::handleButtonEvent/handleStickInput` | `DirectConnection` | 轮询线程即时处理，低延迟 |
 | 手柄 `connectedChanged` → mapper 释放全部注入 | `DirectConnection` | 断开瞬间兜底释放，防卡键 |
 | `SteamInput::buttonMapped`/`stickMapped`/`profileChanged` → mapper | `DirectConnection \| UniqueConnection` | 注入必须在轮询线程执行，绝不进主线程事件队列（见下） |
-| `SteamInput::layerChanged`/`buttonMapped` → `MainWindow`（层按钮/悬浮窗刷新） | Auto（自动转 Queued） | UI 更新必须在主线程 |
+| `SteamInput::layerChanged`/`buttonMapped`/`operationSetChanged` → `MainWindow`（层按钮/悬浮窗/操作集下拉框刷新） | Auto（自动转 Queued） | UI 更新必须在主线程 |
 | `KeyboardMouseMapper::mouseToggleChanged` → 悬浮窗/主窗口 | Auto（Queued） | UI 更新在主线程 |
 | 手柄 `buttonChanged` → `LayerEditDialog::onGamepadButton` | `QueuedConnection`（显式） | 模态对话框内更新列表高亮，必须在主线程 |
 
@@ -415,6 +459,8 @@ look 线程用 `timeBeginPeriod(1)` 提高系统计时器分辨率保证 8ms 节
 
 配置文件路径：`<exe目录>\steamlike_config.json`（与安卓版同名，可互换）。
 
+**新版（含操作集）**——加载旧 v2 格式（顶层直接 `commonLayer`/`layers`）时自动包装成单个「默认操作集」（Set1），无缝升级：
+
 ```json
 {
   "version": 2,
@@ -425,26 +471,33 @@ look 线程用 `timeBeginPeriod(1)` 提高系统计时器分辨率保证 8ms 节
     "lookSmoothing": 0.5,
     "lookAcceleration": 1.5
   },
-  "commonLayer": {
-    "id": "Common",
-    "name": "Common",
-    "buttonMappings": {
-      "A": { "action": { "type": "keyboard", "keyCode": 62 } },
-      "B": { "action": { "type": "mouse", "button": "RIGHT" } },
-      "DPAD_UP": { "action": { "type": "switchLayer", "layerName": "Layer1" } }
-    }
-  },
-  "layers": [
+  "activeOperationSet": "Set1",
+  "operationSets": [
     {
-      "id": "Layer1",
-      "name": "Layer1 战斗",
-      "triggerButton": "DPAD_UP",
-      "buttonMappings": {
-        "X": {
-          "action": { "type": "keyboard", "keyCode": 51 },
-          "subCommands": [ 57 ]
+      "id": "Set1",
+      "name": "默认操作集",
+      "commonLayer": {
+        "id": "Common",
+        "name": "Common",
+        "buttonMappings": {
+          "A": { "action": { "type": "keyboard", "keyCode": 62 } },
+          "B": { "action": { "type": "mouse", "button": "RIGHT" } },
+          "DPAD_UP": { "action": { "type": "switchLayer", "layerName": "Layer1" } }
         }
-      }
+      },
+      "layers": [
+        {
+          "id": "Layer1",
+          "name": "Layer1 战斗",
+          "triggerButton": "DPAD_UP",
+          "buttonMappings": {
+            "X": {
+              "action": { "type": "keyboard", "keyCode": 51 },
+              "subCommands": [ 57 ]
+            }
+          }
+        }
+      ]
     }
   ]
 }
@@ -456,7 +509,11 @@ look 线程用 `timeBeginPeriod(1)` 提高系统计时器分辨率保证 8ms 节
 |---|---|
 | `version` | 配置版本号，必须为 2，否则拒绝加载 |
 | `globalSettings` | 死区 / 灵敏度 / 光标速度（预留）/ 平滑 / 加速度；`invertLookX/Y` 视角翻转开关；`overlayX/Y`/`overlayScale` 悬浮窗位置与缩放（-1 / 1.0 表示未保存过）；`mainWindowX/Y` 主窗口位置（-1 表示未保存过）；`releaseOnForegroundChange` 前台窗口切换时是否释放注入（默认 true）；`confirmOnClose` 「关闭时退出程序」选项：true 点关闭直接退出，false 点关闭最小化到托盘 |
-| `commonLayer` / `layers` | 层对象；`id` 唯一标识（运行时定位用，重命名不影响），`name` 显示名可修改 |
+| `activeOperationSet` | 当前激活操作集的 `id`，启动时恢复到该操作集；缺失时回退到第一个 |
+| `operationSets` | 操作集数组（至少 1 个），每个含 `id` / `name` / `commonLayer` / `layers` |
+| `operationSets[].id` | 操作集唯一标识（"Set1"、"Set2"...），运行时定位用，重命名不影响 |
+| `operationSets[].name` | 操作集显示名，可自定义修改 |
+| `operationSets[].commonLayer` / `layers` | 本操作集内的层对象；`id` 唯一标识（运行时定位用，重命名不影响），`name` 显示名可修改 |
 | `triggerButton` | 仅 UI 展示用，不参与运行时层切换 |
 | `buttonMappings` | 键名 -> 映射；键名见「手柄按键名」 |
 | `action.type` | `keyboard` / `mouse` / `mouseToggle` / `switchLayer` / `mouseMove` / `lookAround` / `toggleMapping` / `toggleOnScreenKeyboard` / `toggleOverlay` |
@@ -477,8 +534,14 @@ look 线程用 `timeBeginPeriod(1)` 提高系统计时器分辨率保证 8ms 节
 
 1. 启动程序，状态栏显示手柄连接状态；未连接时插入手柄即可自动识别。
 2. 点击 **开始映射** 启用键鼠注入（默认已启动）。
-3. 层切换由「切换层」动作驱动：在公共层（或其他层）为某手柄按键设置「切换层」动作，按住即临时激活目标操作层、松开回到公共层。默认配置不预设层切换映射，需自行配置。
-4. 点击层按钮可打开该层的按键映射编辑对话框；点击「编辑公共层…」编辑公共层映射。
-5. 全局设置滑块实时生效（死区、视角灵敏度、平滑、加速度）。
-6. 保存配置后写入 `steamlike_config.json`；重置默认恢复 WoW 预设。
-7. 最小化主窗口后，悬浮层信息窗继续显示，可拖动到任意位置。
+3. **操作集**：主窗口左侧「操作集」下拉框显示当前操作集，可下拉**切换**（其下所有操作层整体切换，各操作集互不影响）。
+   - **添加**：新建一个空操作集（默认名「操作集 N」）并自动切换过去。
+   - **复制**：复制当前操作集，弹出对话框可直接**改名**生成新操作集。
+   - **重命名**：修改当前操作集的显示名。
+   - **删除**：删除当前操作集（至少保留一个）。
+4. 层切换由「切换层」动作驱动：在公共层（或其他层）为某手柄按键设置「切换层」动作，按住即临时激活目标操作层、松开回到公共层。默认配置不预设层切换映射，需自行配置。
+5. 点击层按钮可打开该层的按键映射编辑对话框；点击「编辑公共层…」编辑公共层映射。
+6. 全局设置滑块实时生效（死区、视角灵敏度、平滑、加速度）。
+7. 悬浮窗顶部显示当前**操作集**与当前层；右键展开/收起映射列表，左键拖动位置，滚轮缩放。
+8. 保存配置后写入 `steamlike_config.json`；重置默认恢复 WoW 预设。
+9. 最小化主窗口后，悬浮层信息窗继续显示，可拖动到任意位置。

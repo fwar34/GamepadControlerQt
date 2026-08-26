@@ -39,8 +39,11 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QComboBox>
 #include <QCheckBox>
 #include <QCloseEvent>
+#include <QInputDialog>
+#include <QLineEdit>
 #include <QMenu>
 #include <QProcess>
 #include <QSlider>
@@ -80,6 +83,13 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     connect(input_, &SteamInput::layerChanged, overlay_, &OverlayWidget::setLayerName);
     // 层变化 -> 主界面刷新当前层标签与激活层按钮颜色
     connect(input_, &SteamInput::layerChanged, this, &MainWindow::onLayerChanged);
+    // 操作集变化 -> 刷新下拉框 + 悬浮窗操作集名
+    connect(input_, &SteamInput::operationSetChanged, this, [this](const QString& name) {
+        refreshSetCombo();
+        if (overlay_)
+            overlay_->setOperationSet(name);
+    });
+    overlay_->setOperationSet(input_->profile.activeOperationSetName());   // 初始操作集名
     // MouseToggle 锁存状态 -> 悬浮窗橙色提示（含再按一次解除的方法）
     connect(mapper_, &KeyboardMouseMapper::mouseToggleChanged,
             overlay_, &OverlayWidget::setMouseToggleState);
@@ -204,11 +214,35 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
     // ---- 中部：层按钮 + 设置 ----
     auto* mid = new QHBoxLayout;
 
-    // 层编辑区：每个操作层一个按钮（点击打开该层的编辑对话框）
-    auto* layerGroup = new QGroupBox(tr("操作层（点击编辑）"), this);
+    // 层编辑区：操作集管理 + 每个操作层一个按钮（点击打开该层的编辑对话框）
+    auto* layerGroup = new QGroupBox(tr("操作集与操作层（点击层按钮编辑）"), this);
     auto* layerLayout = new QVBoxLayout(layerGroup);
 
-    const auto& layers = input_->profile.layers;
+    // ---- 操作集管理栏：切换 + 添加 + 复制 + 重命名 + 删除 ----
+    auto* setBar = new QHBoxLayout;
+    setBar->addWidget(new QLabel(tr("操作集："), layerGroup));
+    setCombo_ = new QComboBox(layerGroup);
+    setCombo_->setMinimumWidth(110);
+    setCombo_->setToolTip(tr("切换操作集：其下所有操作层整体切换，各操作集互不影响"));
+    connect(setCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &MainWindow::onSetComboChanged);
+    setBar->addWidget(setCombo_, 1);
+    auto* addSetBtn = new QPushButton(tr("添加"), layerGroup);
+    connect(addSetBtn, &QPushButton::clicked, this, &MainWindow::onAddSet);
+    setBar->addWidget(addSetBtn);
+    auto* copySetBtn = new QPushButton(tr("复制"), layerGroup);
+    connect(copySetBtn, &QPushButton::clicked, this, &MainWindow::onCopySet);
+    setBar->addWidget(copySetBtn);
+    auto* renameSetBtn = new QPushButton(tr("重命名"), layerGroup);
+    connect(renameSetBtn, &QPushButton::clicked, this, &MainWindow::onRenameSet);
+    setBar->addWidget(renameSetBtn);
+    auto* delSetBtn = new QPushButton(tr("删除"), layerGroup);
+    connect(delSetBtn, &QPushButton::clicked, this, &MainWindow::onDeleteSet);
+    setBar->addWidget(delSetBtn);
+    layerLayout->addLayout(setBar);
+    refreshSetCombo();
+
+    const auto& layers = input_->profile.layers();
     auto* grid = new QGridLayout;
     grid->setSpacing(6);
     const int cols = 2;
@@ -388,6 +422,35 @@ MainWindow::MainWindow(SteamInput* input, KeyboardMouseMapper* mapper, XInputGam
         QPushButton:focus {
             outline: none;
         }
+        /* 操作集下拉框（与层编辑对话框同款深色样式） */
+        QComboBox {
+            background-color: #33363b;
+            color: #e8eaee;
+            border: 1px solid #4a4e55;
+            border-radius: 5px;
+            padding: 3px 8px;
+        }
+        QComboBox:hover {
+            border-color: #7fc9c4;
+        }
+        QComboBox::drop-down {
+            border: none;
+            background: transparent;
+            width: 22px;
+        }
+        QComboBox::down-arrow {
+            image: url(:/icons/down-arrow.png);
+            width: 10px;
+            height: 6px;
+        }
+        QComboBox QAbstractItemView {
+            background-color: #33363b;
+            color: #e8eaee;
+            border: 1px solid #4a4e55;
+            selection-background-color: #22958c;
+            selection-color: #ffffff;
+            outline: none;
+        }
         QSlider::groove:horizontal {
             height: 4px;
             background: #4a4e55;
@@ -527,6 +590,149 @@ void MainWindow::refreshLayerButtons() {
 }
 
 // ============================================================
+// refreshSetCombo：重建操作集下拉框
+// ============================================================
+// 按操作集显示名填充下拉框（itemData 存 id），并选中当前激活集。
+// refreshingSets_ 置位期间不响应 currentIndexChanged（防止程序化
+// 刷新误触发 onSetComboChanged 切换操作集）。
+void MainWindow::refreshSetCombo() {
+    if (!setCombo_) return;
+    refreshingSets_ = true;
+    setCombo_->clear();
+    for (const OperationSet& set : input_->profile.operationSets)
+        setCombo_->addItem(set.name, set.id);
+    const int idx = setCombo_->findData(input_->profile.activeOperationSetId);
+    if (idx >= 0)
+        setCombo_->setCurrentIndex(idx);
+    refreshingSets_ = false;
+}
+
+// ============================================================
+// onSetComboChanged：下拉框选择变化 -> 切换操作集
+// ============================================================
+// 调用引擎的 switchOperationSet：清空层栈 + 更新激活集，
+// 并通过 operationSetChanged / layerChanged 信号联动悬浮窗与层按钮。
+void MainWindow::onSetComboChanged(int) {
+    if (refreshingSets_ || !setCombo_) return;
+    const QString id = setCombo_->currentData().toString();
+    if (id.isEmpty() || id == input_->profile.activeOperationSetId)
+        return;
+    if (input_->switchOperationSet(id)) {
+        refreshLayerButtons();
+        statusBar()->showMessage(
+            tr("已切换到操作集：%1").arg(input_->profile.activeOperationSetName()));
+    }
+}
+
+// ============================================================
+// onAddSet：添加新操作集并切换到它
+// ============================================================
+// 新操作集为全新空配置（空公共层 + 10 个空操作层），默认名"操作集 N"。
+// 先清空层栈（防止 QVector 扩容使已激活层指针失效），再追加并切换。
+void MainWindow::onAddSet() {
+    const QString newId = input_->profile.uniqueOperationSetId();
+    int n = input_->profile.operationSets.size() + 1;
+    QString name = tr("操作集 %1").arg(n);
+    // 避免与已有操作集重名
+    while (true) {
+        bool dup = false;
+        for (const OperationSet& s : input_->profile.operationSets)
+            if (s.name == name) { dup = true; break; }
+        if (!dup) break;
+        name = tr("操作集 %1").arg(++n);
+    }
+    OperationSet set = OperationSet::createEmpty(newId, name);
+    input_->deactivateAllLayers();
+    input_->profile.operationSets.append(set);
+    input_->profile.activeOperationSetId = newId;
+    input_->notifyOperationSetChanged();
+    refreshSetCombo();
+    refreshLayerButtons();
+    statusBar()->showMessage(tr("已添加操作集：%1").arg(name));
+}
+
+// ============================================================
+// onCopySet：复制当前操作集（可直接改名）
+// ============================================================
+// 弹出命名对话框（默认"xxx - 副本"），确定后生成完整副本并切换到它。
+// 副本保留层 id（Layer1..Layer10），因此层内 SwitchLayer 引用依然有效。
+void MainWindow::onCopySet() {
+    const OperationSet* src = input_->profile.activeSet();
+    if (!src) return;
+    const QString defaultName = tr("%1 - 副本").arg(src->name);
+    bool ok = false;
+    const QString newName = QInputDialog::getText(
+        this, tr("复制操作集"), tr("新操作集名称："), QLineEdit::Normal,
+        defaultName, &ok).trimmed();
+    if (!ok || newName.isEmpty()) return;
+    const QString newId = input_->profile.uniqueOperationSetId();
+    OperationSet copy = *src;
+    copy.id = newId;
+    copy.name = newName;
+    input_->deactivateAllLayers();
+    input_->profile.operationSets.append(copy);
+    input_->profile.activeOperationSetId = newId;
+    input_->notifyOperationSetChanged();
+    refreshSetCombo();
+    refreshLayerButtons();
+    statusBar()->showMessage(tr("已复制操作集：%1").arg(newName));
+}
+
+// ============================================================
+// onRenameSet：重命名当前操作集
+// ============================================================
+// 仅修改显示名（id 不变，运行时定位不受影响）。
+void MainWindow::onRenameSet() {
+    OperationSet* set = input_->profile.activeSet();
+    if (!set) return;
+    bool ok = false;
+    const QString newName = QInputDialog::getText(
+        this, tr("重命名操作集"), tr("操作集名称："), QLineEdit::Normal,
+        set->name, &ok).trimmed();
+    if (!ok || newName.isEmpty() || newName == set->name) return;
+    set->name = newName;
+    refreshSetCombo();
+    input_->notifyOperationSetChanged();
+    statusBar()->showMessage(tr("操作集已重命名为：%1").arg(newName));
+}
+
+// ============================================================
+// onDeleteSet：删除当前操作集
+// ============================================================
+// 至少保留一个操作集；删除后切换到剩余的第一个。
+// 先清空层栈再删除（防止删除后已激活层指针悬垂）。
+void MainWindow::onDeleteSet() {
+    if (input_->profile.operationSets.size() <= 1) {
+        QMessageBox::information(this, tr("删除操作集"), tr("至少需要保留一个操作集。"));
+        return;
+    }
+    const OperationSet* set = input_->profile.activeSet();
+    if (!set) return;
+    const QString name = set->name;
+    const auto ret = QMessageBox::question(
+        this, tr("删除操作集"), tr("确定删除操作集「%1」吗？其下所有层映射将丢失。").arg(name),
+        QMessageBox::Yes | QMessageBox::No);
+    if (ret != QMessageBox::Yes)
+        return;
+    const QString removingId = input_->profile.activeOperationSetId;
+    input_->deactivateAllLayers();
+    for (int i = 0; i < input_->profile.operationSets.size(); ++i) {
+        if (input_->profile.operationSets[i].id == removingId) {
+            input_->profile.operationSets.removeAt(i);
+            break;
+        }
+    }
+    if (input_->profile.operationSets.isEmpty())
+        input_->profile.operationSets.append(OperationSet::createEmpty(
+            QStringLiteral("Set1"), QStringLiteral("默认操作集")));
+    input_->profile.activeOperationSetId = input_->profile.operationSets.first().id;
+    input_->notifyOperationSetChanged();
+    refreshSetCombo();
+    refreshLayerButtons();
+    statusBar()->showMessage(tr("已删除操作集：%1").arg(name));
+}
+
+// ============================================================
 // onToggleStartStop：启动/停止映射开关
 // ============================================================
 // 停止时只停映射器（look 线程 + 断开注入信号），并释放所有按键；
@@ -596,6 +802,10 @@ void MainWindow::onResetConfig() {
     const ControllerProfile def = ControllerProfile::createDefault();
     ConfigManager::save(def);
     input_->loadProfile(def);
+    // 重置操作集下拉框与悬浮窗操作集名（默认只有"默认操作集"）
+    refreshSetCombo();
+    if (overlay_)
+        overlay_->setOperationSet(input_->profile.activeOperationSetName());
     // 同步滑块到新默认值（滑块变更会自动写回 profile）
     deadzoneSlider_->setValue(qRound(def.globalSettings.deadzone * 100));
     sensitivitySlider_->setValue(qRound(def.globalSettings.lookSensitivity * 100));

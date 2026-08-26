@@ -92,6 +92,12 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
     headerRow->addStretch();
     layout_->addLayout(headerRow);
 
+    // 当前操作集名称（切换操作集时更新，收起/展开都显示）
+    setLabel_ = new QLabel(tr("操作集: 默认操作集"), this);
+    setLabel_->setFont(QFont("DengXian", 9, QFont::Normal));
+    setLabel_->setStyleSheet("color: #7fc9c4;");
+    layout_->addWidget(setLabel_);
+
     // 头部与内容之间的分隔线
     auto* separator = new QFrame(this);
     separator->setObjectName(QStringLiteral("headerSeparator"));
@@ -168,6 +174,17 @@ void OverlayWidget::paintEvent(QPaintEvent*) {
 void OverlayWidget::setLayerName(const QString& name) {
     currentLayerName_ = name;
     layerLabel_->setText(tr("当前层: %1").arg(name));
+    if (expanded_)
+        refreshMappings();
+    adjustSize();
+}
+
+// ============================================================
+// setOperationSet：更新显示的当前操作集
+// ============================================================
+void OverlayWidget::setOperationSet(const QString& name) {
+    currentSetName_ = name;
+    setLabel_->setText(tr("操作集: %1").arg(name));
     if (expanded_)
         refreshMappings();
     adjustSize();
@@ -268,10 +285,11 @@ void OverlayWidget::refreshMappingsIfExpanded() {
 void OverlayWidget::refreshMappings() {
     if (!steamInput_ || !mappingsLabel_) return;
 
-    // 定位当前层：最后激活的操作层（栈顶）或公共层
+    // 定位当前层：最后激活的操作层（栈顶）或公共层。
+    // 公共层取当前激活操作集的公共层（profile.commonLayer()）。
     const QVector<const OperationLayer*> active = steamInput_->getActiveLayers();
     const OperationLayer* layer = active.isEmpty()
-                                      ? &steamInput_->profile.commonLayer
+                                      ? steamInput_->profile.commonLayer()
                                       : active.last();
 
     QStringList lines;
@@ -398,6 +416,7 @@ void OverlayWidget::applyCurrentScale() {
         return f;
     };
     layerLabel_->setFont(scaleFont(baseLayerFont_));
+    setLabel_->setFont(scaleFont(baseLayerFont_));
     buttonsLabel_->setFont(scaleFont(baseButtonsFont_));
     mappingsLabel_->setFont(scaleFont(baseMappingsFont_));
     // 更新「按下按键」最小高度，防止缩放后字形下缘被裁切

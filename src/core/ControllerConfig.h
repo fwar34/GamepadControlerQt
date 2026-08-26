@@ -8,16 +8,25 @@
 // =====================================================================
 // ControllerConfig —— 配置序列化（等效安卓版 ControllerConfig）
 //
-// JSON 格式与安卓版完全兼容（version=2），使得同一份配置文件
-// 可以在 Windows 版与安卓版之间互换使用。
+// JSON 格式与安卓版（version=2）同版本号，同一份配置文件可在
+// Windows 版与安卓版之间互换使用。
 //
-// 顶层结构：
+// 顶层结构（新格式，含操作集）：
 //   {
 //     "version": 2,
 //     "globalSettings": { ... },
-//     "commonLayer":   { ... },
-//     "layers":        [ ... ]
+//     "activeOperationSet": "Set1",
+//     "operationSets": [
+//       {
+//         "id": "Set1",
+//         "name": "默认操作集",
+//         "commonLayer": { ... },
+//         "layers": [ ... ]
+//       }
+//     ]
 //   }
+// 兼容：旧 v2 配置（顶层直接 commonLayer/layers）加载时自动包装成
+// 单个「默认操作集」，实现无缝升级。
 // 动作 type 取值：keyboard / mouse / mouseToggle / switchLayer /
 //                 mouseMove / lookAround
 // 鼠标按钮名：大写（LEFT/RIGHT/MIDDLE/FORWARD/BACK）

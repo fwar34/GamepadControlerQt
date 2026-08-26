@@ -255,7 +255,8 @@ namespace ControllerConfig {
 // ============================================================
 // toJson：ControllerProfile -> JSON 字节串
 // ============================================================
-// 组装根对象：版本号 + 全局设置 + 公共层 + 操作层数组。
+// 组装根对象：版本号 + 全局设置 + 当前激活操作集 + 操作集数组。
+// 每个操作集含 id/name/commonLayer/layers。
 // 返回格式化（带缩进）的 JSON，便于用户直接查看/手工编辑。
 QByteArray toJson(const ControllerProfile& profile, int indent) {
     QJsonObject root;
@@ -279,12 +280,23 @@ QByteArray toJson(const ControllerProfile& profile, int indent) {
     gs.insert(QStringLiteral("confirmOnClose"), profile.globalSettings.confirmOnClose);
     root.insert(QStringLiteral("globalSettings"), gs);
 
-    root.insert(QStringLiteral("commonLayer"), layerToJson(profile.commonLayer));
+    // 当前激活操作集
+    root.insert(QStringLiteral("activeOperationSet"), profile.activeOperationSetId);
 
-    QJsonArray layers;
-    for (const OperationLayer& layer : profile.layers)
-        layers.append(layerToJson(layer));
-    root.insert(QStringLiteral("layers"), layers);
+    // 操作集数组
+    QJsonArray sets;
+    for (const OperationSet& set : profile.operationSets) {
+        QJsonObject s;
+        s.insert(QStringLiteral("id"), set.id);
+        s.insert(QStringLiteral("name"), set.name);
+        s.insert(QStringLiteral("commonLayer"), layerToJson(set.commonLayer));
+        QJsonArray layers;
+        for (const OperationLayer& layer : set.layers)
+            layers.append(layerToJson(layer));
+        s.insert(QStringLiteral("layers"), layers);
+        sets.append(s);
+    }
+    root.insert(QStringLiteral("operationSets"), sets);
 
     return QJsonDocument(root).toJson(QJsonDocument::Indented);
 }
@@ -328,20 +340,70 @@ ControllerProfile fromJson(const QByteArray& json) {
         profile.globalSettings = s;
     }
 
-    // 公共层：缺省时回退到默认公共层
-    const QJsonValue commonVal = root.value(QStringLiteral("commonLayer"));
-    profile.commonLayer = commonVal.isObject()
-        ? parseLayer(commonVal.toObject(), /*isCommon=*/true)
-        : OperationLayer(QStringLiteral("Common"));
-
-    // 操作层数组
-    if (root.value(QStringLiteral("layers")).isArray()) {
-        const QJsonArray arr = root.value(QStringLiteral("layers")).toArray();
-        profile.layers.clear();
+    // 公共层/操作层改为按操作集组织：
+    //   - 新格式：根节点 operationSets 数组（含 activeOperationSet 指定激活集）；
+    //   - 旧 v2 格式兼容：根节点仅有顶层 commonLayer/layers 时，
+    //     自动包装成单个「默认操作集」（Set1），保证旧配置无缝升级。
+    const QJsonValue setsVal = root.value(QStringLiteral("operationSets"));
+    if (setsVal.isArray() && !setsVal.toArray().isEmpty()) {
+        const QJsonArray arr = setsVal.toArray();
         for (const QJsonValue& v : arr) {
-            if (v.isObject())
-                profile.layers.append(parseLayer(v.toObject(), /*isCommon=*/false));
+            if (!v.isObject()) continue;
+            const QJsonObject so = v.toObject();
+            OperationSet set;
+            set.id = so.value(QStringLiteral("id")).toString();
+            set.name = so.value(QStringLiteral("name")).toString();
+            if (set.id.isEmpty())
+                set.id = set.name.isEmpty() ? QStringLiteral("Set") : set.name;
+            // 本操作集的公共层
+            const QJsonValue cVal = so.value(QStringLiteral("commonLayer"));
+            set.commonLayer = cVal.isObject()
+                ? parseLayer(cVal.toObject(), /*isCommon=*/true)
+                : OperationLayer(QStringLiteral("Common"));
+            // 本操作集的操作层数组
+            if (so.value(QStringLiteral("layers")).isArray()) {
+                const QJsonArray larr = so.value(QStringLiteral("layers")).toArray();
+                for (const QJsonValue& lv : larr) {
+                    if (lv.isObject())
+                        set.layers.append(parseLayer(lv.toObject(), /*isCommon=*/false));
+                }
+            }
+            profile.operationSets.append(set);
         }
+        // 恢复上次激活的操作集；缺失时回退到第一个
+        if (!profile.setActiveOperationSet(root.value(QStringLiteral("activeOperationSet")).toString())
+            && !profile.operationSets.isEmpty())
+            profile.activeOperationSetId = profile.operationSets.first().id;
+    } else {
+        // ---- 旧 v2 格式兼容：包装为单个「默认操作集」 ----
+        OperationSet set;
+        set.id = QStringLiteral("Set1");
+        set.name = QStringLiteral("默认操作集");
+        const QJsonValue commonVal = root.value(QStringLiteral("commonLayer"));
+        set.commonLayer = commonVal.isObject()
+            ? parseLayer(commonVal.toObject(), /*isCommon=*/true)
+            : OperationLayer(QStringLiteral("Common"));
+        if (root.value(QStringLiteral("layers")).isArray()) {
+            const QJsonArray arr = root.value(QStringLiteral("layers")).toArray();
+            for (const QJsonValue& v : arr) {
+                if (v.isObject())
+                    set.layers.append(parseLayer(v.toObject(), /*isCommon=*/false));
+            }
+        }
+        profile.operationSets.append(set);
+        profile.activeOperationSetId = set.id;
+    }
+
+    // ---- 兜底保证：至少保留一个有效操作集 ----
+    // operationSets 数组为空或元素全无效（解析时被跳过）时，
+    // profile.operationSets 可能为空，此时 activeSet() 返回 nullptr，
+    // 下游 commonLayer()/layers() 解引用将导致未定义行为（崩溃）。
+    // 这里兜底创建一个默认操作集并指向它，保证返回的 profile 始终有效。
+    if (profile.operationSets.isEmpty()) {
+        OperationSet fallback = OperationSet::createEmpty(
+            QStringLiteral("Set1"), QStringLiteral("默认操作集"));
+        profile.operationSets.append(fallback);
+        profile.activeOperationSetId = fallback.id;
     }
 
     return profile;

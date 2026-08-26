@@ -73,43 +73,34 @@ QString KeyMapping::describe() const {
 // ControllerProfile::createDefault：创建默认配置
 // ============================================================
 // 返回一份全新的默认 ControllerProfile：
+//   - 默认操作集「默认操作集」（Set1）：含公共层 + 10 个空操作层。
 //   - 公共层（Common）：绑定常用键（空格/左右键/ESC 等）+ 视角控制，
 //     不预设层切换映射，由用户通过 UI 或配置文件自行设置；
 //   - 10 个操作层：各自带显示名，具体键位映射留空，由用户编辑。
 ControllerProfile ControllerProfile::createDefault() {
     ControllerProfile p;
-    p.commonLayer.id = QStringLiteral("Common");
-    p.commonLayer.name = QStringLiteral("Common");
+    p.operationSets.append(OperationSet::createEmpty(QStringLiteral("Set1"),
+                                                     QStringLiteral("默认操作集")));
+    p.activeOperationSetId = QStringLiteral("Set1");
+    OperationSet& set = *p.activeSet();
 
     // ---- 公共层默认映射 ----
     // 基础常用键：供所有层共享，操作层没有映射的键会回退到这里
-    p.commonLayer.buttonMappings.insert(
+    set.commonLayer.buttonMappings.insert(
         ControllerButton::A, KeyMapping{MappedAction::keyboardKey(AndroidKey::SPACE), {}});
-    p.commonLayer.buttonMappings.insert(
+    set.commonLayer.buttonMappings.insert(
         ControllerButton::B, KeyMapping{MappedAction::mouseClick(MouseButton::RIGHT), {}});
-    p.commonLayer.buttonMappings.insert(
+    set.commonLayer.buttonMappings.insert(
         ControllerButton::X, KeyMapping{MappedAction::mouseClick(MouseButton::LEFT), {}});
-    p.commonLayer.buttonMappings.insert(
+    set.commonLayer.buttonMappings.insert(
         ControllerButton::Y, KeyMapping{MappedAction::keyboardKey(AndroidKey::I), {}});
-    p.commonLayer.buttonMappings.insert(
+    set.commonLayer.buttonMappings.insert(
         ControllerButton::MENU, KeyMapping{MappedAction::keyboardKey(AndroidKey::ESCAPE), {}});
-    p.commonLayer.buttonMappings.insert(
+    set.commonLayer.buttonMappings.insert(
         ControllerButton::OPTIONS, KeyMapping{MappedAction::keyboardKey(AndroidKey::M), {}});
     // 右摇杆按压 -> 视角控制
-    p.commonLayer.buttonMappings.insert(
+    set.commonLayer.buttonMappings.insert(
         ControllerButton::RIGHT_STICK_CLICK, KeyMapping{MappedAction::lookAround(), {}});
-
-    // ---- 10 个操作层 ----
-    // 仅创建层对象，不预设 SwitchLayer 映射，由用户自行配置
-    const char* layerIds[MAX_LAYERS] = {
-        "Layer1", "Layer2", "Layer3", "Layer4", "Layer5",
-        "Layer6", "Layer7", "Layer8", "Layer9", "Layer10",
-    };
-    for (int i = 0; i < MAX_LAYERS; ++i) {
-        OperationLayer layer(QString::fromLatin1(layerIds[i]));
-        layer.name = layerDisplayName(layer.id);
-        p.layers.append(layer);
-    }
 
     return p;
 }
