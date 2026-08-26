@@ -1,0 +1,33 @@
+[package]
+name = "gamepad_controler_rust"
+version = "0.0.1"
+edition = "2021"
+
+# Windows 原生手柄 -> 键鼠映射器（gpui GUI 版）
+# 复刻 L:\GamepadControlerQt（Qt Widgets 版）的全部功能
+
+[dependencies]
+# Windows API：XInput 读取 + SendInput 注入
+windows = { version = "0.62", features = [
+    "Win32_Devices_HumanInterfaceDevice",
+    "Win32_Foundation",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Input_XboxController",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_LibraryLoader",
+] }
+
+# 配置 JSON 读写
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# GUI：gpui（Zed 同款 GPU 加速 UI 框架）
+gpui = "0.2"
+# gpui 文本输入组件（gpui 核心不含 TextInput）
+gpui-component = "0.5"
+
+# 日志
+log = "0.4"
+
+[profile.release]
+opt-level = 3
