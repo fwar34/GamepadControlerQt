@@ -65,6 +65,19 @@ private:
     QColor color_ = QColor(QStringLiteral("#2e7d32"));  // 初始：映射运行中（绿）
 };
 
+// ============================================================
+// themedFont —— 构造带统一渲染策略的雅黑字体
+// ============================================================
+// 显式 QFont(...) 构造不会继承全局字体策略，这里统一补上
+// 抗锯齿 + 无 hinting，避免小字号中文笔画粘连、边缘毛糙。
+// ============================================================
+QFont themedFont(int pointSize, QFont::Weight weight = QFont::Normal) {
+    QFont f(QStringLiteral("Microsoft YaHei"), pointSize, weight);
+    f.setStyleStrategy(QFont::PreferAntialias);
+    f.setHintingPreference(QFont::PreferNoHinting);
+    return f;
+}
+
 }  // namespace
 
 // ============================================================
@@ -82,7 +95,7 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
     // 顶部行：映射状态圆点 + 当前层名称
     statusDot_ = new StatusDotWidget(this);
     layerLabel_ = new QLabel(tr("当前层: Common"), this);
-    baseLayerFont_ = QFont("DengXian", 11, QFont::Bold);   // 粗体用等线，避免雅黑合成粗体发虚
+    baseLayerFont_ = themedFont(11, QFont::Bold);
     layerLabel_->setFont(baseLayerFont_);
     layerLabel_->setStyleSheet("color: #e8eaee;");
     auto* headerRow = new QHBoxLayout;
@@ -94,7 +107,7 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
 
     // 当前操作集名称（切换操作集时更新，收起/展开都显示）
     setLabel_ = new QLabel(tr("操作集: 默认操作集"), this);
-    setLabel_->setFont(QFont("DengXian", 9, QFont::Normal));
+    setLabel_->setFont(themedFont(9));
     setLabel_->setStyleSheet("color: #7fc9c4;");
     layout_->addWidget(setLabel_);
 
@@ -104,10 +117,9 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
     separator->setFixedHeight(1);
     layout_->addWidget(separator);
 
-    // 按下的手柄按键
+    // 按下的手柄按键（非粗体：粗体字形下缘超出度量导致「无」字截断）
     buttonsLabel_ = new QLabel(tr("按下按键: 无"), this);
-    // 换用雅黑 UI + 非粗体：雅黑粗体字形下缘超出度量导致「无」字截断
-    baseButtonsFont_ = QFont("Microsoft YaHei UI", 10, QFont::Normal);
+    baseButtonsFont_ = themedFont(10);
     buttonsLabel_->setFont(baseButtonsFont_);
     // 强制 label 高度大于字体行高，避免字形下缘被裁切
     buttonsLabel_->setMinimumHeight(buttonsLabel_->fontMetrics().height() + 4);
@@ -116,7 +128,7 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
 
     // MouseToggle 锁存提示（默认隐藏；有锁存时橙色高亮，提示如何解除）
     toggleLabel_ = new QLabel(this);
-    toggleLabel_->setFont(QFont("DengXian", 10, QFont::Bold));
+    toggleLabel_->setFont(themedFont(10, QFont::Bold));
     toggleLabel_->setStyleSheet("color: #ffb54d;");
     toggleLabel_->setWordWrap(true);   // 多个锁存键时超宽自动换行兜底
     toggleLabel_->hide();
@@ -124,7 +136,7 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
 
     // 展开时的映射列表（默认隐藏）
     mappingsLabel_ = new QLabel(this);
-    baseMappingsFont_ = QFont("Microsoft YaHei", 9);
+    baseMappingsFont_ = themedFont(9);
     mappingsLabel_->setFont(baseMappingsFont_);
     mappingsLabel_->setStyleSheet("color: #c9cdd4;");
     mappingsLabel_->setTextFormat(Qt::RichText);

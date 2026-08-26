@@ -20,6 +20,7 @@
 
 #include <QApplication>
 #include <QEvent>
+#include <QFont>
 
 #include "core/ConfigManager.h"
 #include "core/InputInjector.h"
@@ -61,6 +62,17 @@ int main(int argc, char* argv[]) {
     // 应用元信息（用于配置文件/设置路径等；本程序配置走 exe 同目录）
     QApplication::setApplicationName(QStringLiteral("GamepadControllerQt"));
     QApplication::setOrganizationName(QStringLiteral("SteamLike"));
+
+    // ---- 全局默认字体：微软雅黑 ----
+    // 保留系统默认字号，只统一字体族，使未显式指定字体的控件/对话框一致。
+    // 字体渲染：Qt6 在 Windows 上用 FreeType，默认 hinting（PreferDefaultHinting）
+    // 会让雅黑在小字号下笔画粘连、边缘毛糙。实测改为 PreferNoHinting +
+    // 抗锯齿后文字平滑干净（若嫌发虚可改用 PreferVerticalHinting）。
+    QFont appFont = app.font();
+    appFont.setFamily(QStringLiteral("Microsoft YaHei"));
+    appFont.setStyleStrategy(QFont::PreferAntialias);
+    appFont.setHintingPreference(QFont::PreferNoHinting);
+    app.setFont(appFont);
 
     // ---- 全局深色主题（限定在 QDialog 内） ----
     // 统一原生对话框（QInputDialog / QMessageBox 等）的深色风格：
