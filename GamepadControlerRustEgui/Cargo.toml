@@ -1,0 +1,36 @@
+[package]
+name = "gamepad_controler_egui"
+version = "0.0.1"
+edition = "2021"
+
+# Windows 原生手柄 -> 键鼠映射器（egui GUI 版）
+# 复刻 L:\GamepadControlerQt（Qt Widgets 版）的全部功能
+#
+# 架构：eframe(egui) 立即模式 GUI + 原生核心（XInput 读取 + SendInput 注入）
+#   - 主窗口：三视图（主 / 层编辑 / 帮助），每 50ms 请求重绘刷新
+#   - 悬浮窗：独立线程运行的透明置顶无边框窗口（显示按下按键 / 映射列表）
+#   - 手柄轮询线程 / 视角线程与 gpui 版一致，独立于 UI 线程
+
+[dependencies]
+# GUI：eframe（egui 框架，OpenGL 后端，编译更快；支持透明置顶多窗口）
+eframe = { version = "0.36", default-features = false, features = ["glow", "default_fonts"] }
+
+# Windows API：XInput 读取 + SendInput 注入
+windows = { version = "0.62", features = [
+    "Win32_Devices_HumanInterfaceDevice",
+    "Win32_Foundation",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Input_XboxController",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_LibraryLoader",
+] }
+
+# 配置 JSON 读写
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# 日志
+log = "0.4"
+
+[profile.release]
+opt-level = 3
