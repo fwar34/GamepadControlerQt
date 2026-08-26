@@ -112,7 +112,7 @@ impl OverlayApp {
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
                                     let txt = if self.expanded { "收起" } else { "展开" };
-                                    if ui.button(txt).clicked() {
+                                    if btn_ghost(ui, txt).clicked() {
                                         self.toggle_expand(&ctx);
                                     }
                                 },
@@ -136,8 +136,9 @@ impl OverlayApp {
                             } else {
                                 "手柄未连接"
                             })
-                            .color(rgb(TEXT_DIM))
-                            .size(13.0),
+                            .color(rgb(TEXT))
+                            .size(13.0)
+                            .strong(),
                         );
                     });
 

@@ -69,27 +69,104 @@ pub fn install_fonts(ctx: &egui::Context) {
 
 /// 应用深色主题到 egui 上下文
 pub fn apply(ctx: &egui::Context) {
+    ctx.set_theme(egui::ThemePreference::Dark);
+
     let mut v = egui::Visuals::dark();
     v.panel_fill = rgb(BG);
     v.window_fill = rgb(BG_PANEL);
     v.faint_bg_color = rgb(BG_INSET);
     v.extreme_bg_color = rgb(BG_DEEP);
     v.override_text_color = Some(rgb(TEXT));
+    v.hyperlink_color = rgb(ACCENT);
     v.selection.bg_fill = rgb(ACCENT_DIM);
     v.selection.stroke.color = rgb(TEXT);
-    v.hyperlink_color = rgb(ACCENT);
-    v.widgets.noninteractive.bg_fill = rgb(BG_PANEL);
-    v.widgets.noninteractive.fg_stroke.color = rgb(TEXT_DIM);
-    v.widgets.inactive.bg_fill = rgb(BG_INSET);
-    v.widgets.inactive.fg_stroke.color = rgb(TEXT);
-    v.widgets.hovered.bg_fill = rgb(BORDER);
-    v.widgets.hovered.fg_stroke.color = rgb(TEXT);
-    v.widgets.active.bg_fill = rgb(ACCENT_DIM);
-    v.widgets.active.fg_stroke.color = rgb(BG_DEEP);
-    ctx.set_visuals(v);
+
+    // 圆角 / 描边 / 阴影
+    let radius = egui::CornerRadius::same(6);
+    v.window_corner_radius = egui::CornerRadius::same(8);
+    v.window_stroke = egui::Stroke::new(1.0, rgb(BORDER));
+    v.window_shadow = egui::Shadow::NONE;
+    v.popup_shadow = egui::Shadow::NONE;
+
+    // 控件各状态配色（与 Qt 深色主题一致）
+    let mut ni = v.widgets.noninteractive;
+    ni.bg_fill = rgb(BG_PANEL);
+    ni.weak_bg_fill = rgb(BG_INSET);
+    ni.bg_stroke = egui::Stroke::new(1.0, rgb(BORDER));
+    ni.fg_stroke.color = rgb(TEXT_DIM);
+    ni.corner_radius = radius;
+    let mut inert = v.widgets.inactive;
+    inert.bg_fill = rgb(BG_INSET);
+    inert.weak_bg_fill = rgb(BG_INSET);
+    inert.fg_stroke.color = rgb(TEXT);
+    inert.corner_radius = radius;
+    let mut hovered = v.widgets.hovered;
+    hovered.bg_fill = rgb(BORDER_STRONG);
+    hovered.weak_bg_fill = rgb(BORDER);
+    hovered.fg_stroke.color = rgb(TEXT);
+    hovered.corner_radius = radius;
+    let mut active = v.widgets.active;
+    active.bg_fill = rgb(ACCENT_DIM);
+    active.weak_bg_fill = rgb(BORDER);
+    active.fg_stroke.color = rgb(BG_DEEP);
+    active.corner_radius = radius;
+    v.widgets.noninteractive = ni;
+    v.widgets.inactive = inert;
+    v.widgets.hovered = hovered;
+    v.widgets.active = active;
 
     let mut style = (*ctx.style_of(egui::Theme::Dark)).clone();
-    style.spacing.item_spacing = egui::vec2(6.0, 6.0);
-    style.spacing.button_padding = egui::vec2(10.0, 4.0);
+    style.visuals = v;
+    style.spacing.item_spacing = egui::vec2(8.0, 8.0);
+    style.spacing.button_padding = egui::vec2(12.0, 6.0);
+    style.spacing.interact_size = egui::vec2(32.0, 26.0);
     ctx.set_style_of(egui::Theme::Dark, style);
+}
+
+// ---------------------------------------------------------------------
+// 通用控件辅助（与程序整体深色风格一致）
+// ---------------------------------------------------------------------
+
+/// 主操作按钮（青绿填充 + 深色文字）
+pub fn btn_accent(ui: &mut egui::Ui, text: &str) -> egui::Response {
+    ui.add(
+        egui::Button::new(egui::RichText::new(text).color(rgb(BG_DEEP)).strong().size(14.0))
+            .fill(rgb(ACCENT))
+            .corner_radius(6.0),
+    )
+}
+
+/// 次要按钮（内嵌底色 + 细边框）
+pub fn btn_ghost(ui: &mut egui::Ui, text: &str) -> egui::Response {
+    ui.add(
+        egui::Button::new(egui::RichText::new(text).color(rgb(TEXT)).size(14.0))
+            .fill(rgb(BG_INSET))
+            .stroke(egui::Stroke::new(1.0, rgb(BORDER)))
+            .corner_radius(6.0),
+    )
+}
+
+/// 危险按钮（红底白字）
+pub fn btn_danger(ui: &mut egui::Ui, text: &str) -> egui::Response {
+    ui.add(
+        egui::Button::new(
+            egui::RichText::new(text)
+                .color(egui::Color32::WHITE)
+                .strong()
+                .size(14.0),
+        )
+        .fill(rgb(DANGER))
+        .corner_radius(6.0),
+    )
+}
+
+/// 分组卡片容器：圆角 + 面板底色 + 细边框
+pub fn card<R>(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    egui::Frame::default()
+        .fill(rgb(BG_PANEL))
+        .stroke(egui::Stroke::new(1.0, rgb(BORDER)))
+        .corner_radius(8.0)
+        .inner_margin(egui::Margin::same(12))
+        .show(ui, add_contents)
+        .inner
 }

@@ -491,77 +491,105 @@ impl MainApp {
         let snap = self.read_snapshot();
         egui::Panel::left("side_left")
             .resizable(false)
-            .default_size(230.0)
-            .frame(egui::Frame::NONE.fill(rgb(BG_PANEL)).inner_margin(egui::Margin::same(10)))
+            .default_size(240.0)
+            .frame(egui::Frame::NONE.fill(rgb(BG_PANEL)).inner_margin(egui::Margin::same(14)))
             .show(ui, |ui| {
                 self.show_left(ui, &snap);
             });
         egui::CentralPanel::default_margins()
-            .frame(egui::Frame::NONE.fill(rgb(BG)).inner_margin(egui::Margin::same(12)))
+            .frame(egui::Frame::NONE.fill(rgb(BG)).inner_margin(egui::Margin::same(16)))
             .show(ui, |ui| {
                 self.show_right(ui, &snap);
             });
     }
 
     fn show_left(&mut self, ui: &mut egui::Ui, snap: &Snapshot) {
-        ui.label(egui::RichText::new("操作集").color(rgb(TEXT)).size(16.0).strong());
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            for (id, name, active) in &snap.sets {
-                if chip(ui, name, *active).clicked() {
-                    self.switch_set(id);
+        ui.label(
+            egui::RichText::new("Gamepad 键鼠映射")
+                .color(rgb(ACCENT))
+                .size(18.0)
+                .strong(),
+        );
+        ui.label(egui::RichText::new("操作集 · 层管理").color(rgb(TEXT_FAINT)).size(12.0));
+        ui.add_space(10.0);
+
+        card(ui, |ui| {
+            ui.label(
+                egui::RichText::new("操作集").color(rgb(TEXT_DIM)).size(13.0).strong(),
+            );
+            ui.add_space(4.0);
+            ui.horizontal_wrapped(|ui| {
+                for (id, name, active) in &snap.sets {
+                    if chip(ui, name, *active).clicked() {
+                        self.switch_set(id);
+                    }
                 }
-            }
-        });
-        ui.add_space(8.0);
-        ui.horizontal_wrapped(|ui| {
-            if ui.button("＋ 添加").clicked() {
-                self.add_set();
-            }
-            if ui.button("复制").clicked() {
-                self.start_copy();
-            }
-            if ui.button("重命名").clicked() {
-                self.start_rename();
-            }
-            if ui.button("删除").clicked() {
-                self.delete_set();
-            }
-        });
-        ui.add_space(8.0);
-        ui.separator();
-        ui.add_space(4.0);
-        ui.label(egui::RichText::new("层列表").color(rgb(TEXT)).size(16.0).strong());
-        ui.add_space(4.0);
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            for (id, name, active) in &snap.layers {
-                let display = layer_display_name(name);
-                if chip(ui, &display, *active).clicked() {
-                    self.open_edit(id);
+            });
+            ui.add_space(6.0);
+            ui.horizontal_wrapped(|ui| {
+                if btn_accent(ui, "＋ 添加").clicked() {
+                    self.add_set();
                 }
-            }
+                if btn_ghost(ui, "复制").clicked() {
+                    self.start_copy();
+                }
+                if btn_ghost(ui, "重命名").clicked() {
+                    self.start_rename();
+                }
+                if btn_ghost(ui, "删除").clicked() {
+                    self.delete_set();
+                }
+            });
+        });
+        ui.add_space(10.0);
+
+        card(ui, |ui| {
+            ui.label(
+                egui::RichText::new("层列表").color(rgb(TEXT_DIM)).size(13.0).strong(),
+            );
+            ui.add_space(4.0);
+            egui::ScrollArea::vertical()
+                .id_salt("layer_list")
+                .max_height(320.0)
+                .show(ui, |ui| {
+                    for (id, name, active) in &snap.layers {
+                        let display = layer_display_name(name);
+                        if chip(ui, &display, *active).clicked() {
+                            self.open_edit(id);
+                        }
+                    }
+                });
+        });
+
+        ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+            ui.add_space(4.0);
+            ui.label(egui::RichText::new("egui 版 · v0.0.1").color(rgb(TEXT_FAINT)).size(11.0));
         });
     }
 
     fn show_right(&mut self, ui: &mut egui::Ui, snap: &Snapshot) {
-        // 状态行
+        // 顶部状态标题栏
         ui.horizontal(|ui| {
             let dot = if snap.connected { rgb(OK) } else { rgb(TEXT_FAINT) };
             ui.label(egui::RichText::new("●").color(dot).size(18.0));
-            ui.label(egui::RichText::new(&snap.status).color(rgb(TEXT)).size(15.0));
+            ui.label(egui::RichText::new(&snap.status).color(rgb(TEXT)).size(15.0).strong());
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(
+                    egui::RichText::new(format!("当前层: {}", snap.layer_name))
+                        .color(rgb(TEXT_DIM))
+                        .size(13.0),
+                );
+                ui.add_space(10.0);
+                ui.label(
+                    egui::RichText::new(format!("当前操作集: {}", snap.set_name))
+                        .color(rgb(ACCENT))
+                        .size(14.0)
+                        .strong(),
+                );
+            });
         });
-        ui.add_space(6.0);
-        ui.label(
-            egui::RichText::new(format!("当前操作集: {}", snap.set_name))
-                .color(rgb(ACCENT))
-                .size(14.0),
-        );
-        ui.label(
-            egui::RichText::new(format!("当前层: {}", snap.layer_name))
-                .color(rgb(TEXT_DIM))
-                .size(13.0),
-        );
         if snap.mouse_toggle {
+            ui.add_space(4.0);
             ui.label(
                 egui::RichText::new(&snap.mouse_toggle_text)
                     .color(rgb(WARN))
@@ -570,78 +598,82 @@ impl MainApp {
         }
         ui.add_space(8.0);
         ui.separator();
-        ui.add_space(8.0);
+        ui.add_space(10.0);
 
         // 全局设置
-        self.setting_row(ui, "死区", &format!("{:.2}", snap.deadzone), "deadzone");
-        self.setting_row(ui, "视角灵敏度", &format!("{:.2}", snap.sensitivity), "look_sensitivity");
-        self.setting_row(ui, "视角平滑", &format!("{:.2}", snap.smoothing), "look_smoothing");
-        self.setting_row(ui, "视角加速", &format!("{:.2}", snap.acceleration), "look_acceleration");
-        ui.add_space(8.0);
-        ui.separator();
-        ui.add_space(8.0);
-
-        // 动作按钮
-        ui.horizontal_wrapped(|ui| {
-            let (label, fill) = if snap.running {
-                ("停止映射", rgb(DANGER))
-            } else {
-                ("开始映射", rgb(OK))
-            };
-            if ui
-                .add(
-                    egui::Button::new(egui::RichText::new(label).color(rgb(BG_DEEP)).strong())
-                        .fill(fill)
-                        .corner_radius(6.0),
-                )
-                .clicked()
-            {
-                self.toggle_mapping();
-            }
-            if ui.button("保存配置").clicked() {
-                self.save_config();
-            }
-            if ui.button("重置配置").clicked() {
-                self.reset_config();
-            }
-            let ov_txt = if self.overlay_visible.load(Ordering::SeqCst) {
-                "关闭悬浮窗"
-            } else {
-                "显示悬浮窗"
-            };
-            if ui.button(ov_txt).clicked() {
-                self.toggle_overlay();
-            }
-            if ui.button("帮助").clicked() {
-                self.view = View::Help;
-            }
-            if ui.button("退出").clicked() {
-                self.quit(ui.ctx());
-            }
+        card(ui, |ui| {
+            ui.label(
+                egui::RichText::new("全局设置").color(rgb(TEXT_DIM)).size(13.0).strong(),
+            );
+            ui.add_space(6.0);
+            self.setting_row(ui, "死区", &format!("{:.2}", snap.deadzone), "deadzone");
+            self.setting_row(ui, "视角灵敏度", &format!("{:.2}", snap.sensitivity), "look_sensitivity");
+            self.setting_row(ui, "视角平滑", &format!("{:.2}", snap.smoothing), "look_smoothing");
+            self.setting_row(ui, "视角加速", &format!("{:.2}", snap.acceleration), "look_acceleration");
         });
+        ui.add_space(10.0);
 
-        // 重命名 / 复制行
-        if let Some(mode) = self.rename_mode {
-            ui.add_space(8.0);
-            let hint = match mode {
-                RenameMode::Rename => "重命名操作集",
-                RenameMode::Copy => "复制为新操作集",
-            };
-            ui.label(egui::RichText::new(hint).color(rgb(ACCENT)).size(13.0));
-            ui.horizontal(|ui| {
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.rename_value)
-                        .hint_text("输入名称")
-                        .desired_width(200.0),
-                );
-                if ui.button("确认").clicked() {
-                    self.commit_rename();
+        // 动作
+        card(ui, |ui| {
+            ui.label(egui::RichText::new("动作").color(rgb(TEXT_DIM)).size(13.0).strong());
+            ui.add_space(6.0);
+            ui.horizontal_wrapped(|ui| {
+                let resp = if snap.running {
+                    btn_danger(ui, "停止映射")
+                } else {
+                    btn_accent(ui, "开始映射")
+                };
+                if resp.clicked() {
+                    self.toggle_mapping();
                 }
-                if ui.button("取消").clicked() {
-                    self.rename_mode = None;
+                if btn_ghost(ui, "保存配置").clicked() {
+                    self.save_config();
+                }
+                if btn_ghost(ui, "重置配置").clicked() {
+                    self.reset_config();
+                }
+                let ov_txt = if self.overlay_visible.load(Ordering::SeqCst) {
+                    "关闭悬浮窗"
+                } else {
+                    "显示悬浮窗"
+                };
+                if btn_ghost(ui, ov_txt).clicked() {
+                    self.toggle_overlay();
+                }
+                if btn_ghost(ui, "帮助").clicked() {
+                    self.view = View::Help;
+                }
+                if btn_ghost(ui, "退出").clicked() {
+                    self.quit(ui.ctx());
                 }
             });
-        }
+
+            // 重命名 / 复制行
+            if let Some(mode) = self.rename_mode {
+                ui.add_space(10.0);
+                ui.separator();
+                ui.add_space(6.0);
+                let hint = match mode {
+                    RenameMode::Rename => "重命名操作集",
+                    RenameMode::Copy => "复制为新操作集",
+                };
+                ui.label(egui::RichText::new(hint).color(rgb(ACCENT)).size(13.0));
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.rename_value)
+                            .hint_text("输入名称")
+                            .desired_width(220.0),
+                    );
+                    if btn_accent(ui, "确认").clicked() {
+                        self.commit_rename();
+                    }
+                    if btn_ghost(ui, "取消").clicked() {
+                        self.rename_mode = None;
+                    }
+                });
+            }
+        });
     }
 
     fn setting_row(&mut self, ui: &mut egui::Ui, label: &str, value: &str, key: &str) {
@@ -701,135 +733,167 @@ impl MainApp {
         };
 
         egui::CentralPanel::default_margins()
-            .frame(egui::Frame::NONE.fill(rgb(BG)).inner_margin(egui::Margin::same(10)))
+            .frame(egui::Frame::NONE.fill(rgb(BG)).inner_margin(egui::Margin::same(16)))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    if ui.button("← 返回").clicked() {
+                    if btn_ghost(ui, "← 返回").clicked() {
                         self.view = View::Main;
                     }
                     ui.add_space(8.0);
                     ui.label(
                         egui::RichText::new(format!("编辑层: {}", layer_display_name(&layer_name)))
                             .color(rgb(TEXT))
-                            .size(16.0)
+                            .size(17.0)
                             .strong(),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button("清空映射").clicked() {
+                        if btn_danger(ui, "清空映射").clicked() {
                             self.clear_mapping();
                         }
                     });
                 });
-                ui.add_space(4.0);
+                ui.add_space(10.0);
                 let sel_disp = controller_button_from_name(&self.selected_button)
                     .map(controller_button_display_name)
                     .unwrap_or(&self.selected_button);
-                ui.label(
-                    egui::RichText::new(format!("当前: {} ({})", sel_disp, desc))
-                        .color(rgb(TEXT_DIM))
-                        .size(13.0),
-                );
-                ui.add_space(4.0);
-                ui.separator();
-                ui.add_space(6.0);
+                card(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new("当前选中").color(rgb(TEXT_DIM)).size(13.0));
+                        ui.label(
+                            egui::RichText::new(sel_disp)
+                                .color(rgb(ACCENT))
+                                .size(15.0)
+                                .strong(),
+                        );
+                        ui.label(egui::RichText::new("→").color(rgb(TEXT_FAINT)).size(13.0));
+                        ui.label(egui::RichText::new(desc).color(rgb(TEXT)).size(14.0));
+                    });
+                });
+                ui.add_space(10.0);
 
                 ui.columns(2, |cols| {
                     // 左：按钮列表
-                    cols[0].set_width(190.0);
-                    cols[0].label(
-                        egui::RichText::new("手柄按键").color(rgb(TEXT_DIM)).size(14.0),
-                    );
-                    egui::ScrollArea::vertical().show(&mut cols[0], |ui| {
-                        for (name, display, pressed) in &buttons {
-                            let selected = *name == self.selected_button;
-                            let mut text = display.to_string();
-                            if *pressed {
-                                text.push_str("  ●");
-                            }
-                            if chip(ui, &text, selected).clicked() {
-                                self.select_button(name);
-                            }
-                        }
+                    cols[0].set_width(200.0);
+                    card(&mut cols[0], |ui| {
+                        ui.label(
+                            egui::RichText::new("手柄按键").color(rgb(TEXT_DIM)).size(13.0).strong(),
+                        );
+                        ui.add_space(4.0);
+                        egui::ScrollArea::vertical()
+                            .id_salt("btn_list")
+                            .show(ui, |ui| {
+                                for (name, display, pressed) in &buttons {
+                                    let selected = *name == self.selected_button;
+                                    let mut text = display.to_string();
+                                    if *pressed {
+                                        text.push_str("  ●");
+                                    }
+                                    if chip(ui, &text, selected).clicked() {
+                                        self.select_button(name);
+                                    }
+                                }
+                            });
                     });
 
                     // 右：编辑区
                     let ui = &mut cols[1];
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        ui.label(
-                            egui::RichText::new("动作类型").color(rgb(TEXT_DIM)).size(14.0),
-                        );
-                        ui.horizontal_wrapped(|ui| {
-                            for (k, label) in KIND_DEFS {
-                                if chip(ui, label, *k == self.edit_kind).clicked() {
-                                    self.set_kind(k);
+                    card(ui, |ui| {
+                        egui::ScrollArea::vertical()
+                            .id_salt("edit_panel")
+                            .show(ui, |ui| {
+                                ui.label(
+                                    egui::RichText::new("动作类型")
+                                        .color(rgb(TEXT_DIM))
+                                        .size(13.0)
+                                        .strong(),
+                                );
+                                ui.add_space(4.0);
+                                ui.horizontal_wrapped(|ui| {
+                                    for (k, label) in KIND_DEFS {
+                                        if chip(ui, label, *k == self.edit_kind).clicked() {
+                                            self.set_kind(k);
+                                        }
+                                    }
+                                });
+                                ui.add_space(6.0);
+                                ui.separator();
+                                ui.add_space(6.0);
+
+                                match self.edit_kind.as_str() {
+                                    "keyboard" => {
+                                        ui.label(
+                                            egui::RichText::new("选择按键")
+                                                .color(rgb(TEXT_DIM))
+                                                .size(13.0),
+                                        );
+                                        ui.add_space(2.0);
+                                        self.keys_grid(ui, &[]);
+                                    }
+                                    "mouse" | "mousetoggle" => {
+                                        ui.label(
+                                            egui::RichText::new("选择鼠标键")
+                                                .color(rgb(TEXT_DIM))
+                                                .size(13.0),
+                                        );
+                                        ui.add_space(2.0);
+                                        ui.horizontal_wrapped(|ui| {
+                                            for (name, label) in MOUSE_BUTTONS {
+                                                if chip(ui, label, false).clicked() {
+                                                    self.set_mouse(name);
+                                                }
+                                            }
+                                        });
+                                    }
+                                    "switchlayer" => {
+                                        ui.label(
+                                            egui::RichText::new("选择目标层")
+                                                .color(rgb(TEXT_DIM))
+                                                .size(13.0),
+                                        );
+                                        ui.add_space(2.0);
+                                        ui.horizontal_wrapped(|ui| {
+                                            for (_id, name) in &layers {
+                                                if chip(ui, &layer_display_name(name), false)
+                                                    .clicked()
+                                                {
+                                                    self.set_layer(name);
+                                                }
+                                            }
+                                        });
+                                    }
+                                    _ => {
+                                        ui.label(
+                                            egui::RichText::new(
+                                                "选择该类型后已保存映射，可继续选择按键编辑。",
+                                            )
+                                            .color(rgb(TEXT_FAINT))
+                                            .size(13.0),
+                                        );
+                                    }
                                 }
-                            }
-                        });
-                        ui.add_space(6.0);
-                        ui.separator();
-                        ui.add_space(6.0);
 
-                        match self.edit_kind.as_str() {
-                            "keyboard" => {
+                                ui.add_space(6.0);
+                                ui.separator();
+                                ui.add_space(6.0);
+                                let subs_text = if subs.is_empty() {
+                                    "无".to_string()
+                                } else {
+                                    subs.iter()
+                                        .map(|&k| key_code_to_name(k))
+                                        .collect::<Vec<_>>()
+                                        .join(" + ")
+                                };
                                 ui.label(
-                                    egui::RichText::new("选择按键").color(rgb(TEXT_DIM)).size(14.0),
+                                    egui::RichText::new(format!(
+                                        "子命令（最多{}个，当前: {}）",
+                                        KeyMapping::MAX_SUB_COMMANDS,
+                                        subs_text
+                                    ))
+                                    .color(rgb(TEXT_DIM))
+                                    .size(13.0),
                                 );
-                                self.keys_grid(ui, &[]);
-                            }
-                            "mouse" | "mousetoggle" => {
-                                ui.label(
-                                    egui::RichText::new("选择鼠标键").color(rgb(TEXT_DIM)).size(14.0),
-                                );
-                                ui.horizontal_wrapped(|ui| {
-                                    for (name, label) in MOUSE_BUTTONS {
-                                        if chip(ui, label, false).clicked() {
-                                            self.set_mouse(name);
-                                        }
-                                    }
-                                });
-                            }
-                            "switchlayer" => {
-                                ui.label(
-                                    egui::RichText::new("选择目标层").color(rgb(TEXT_DIM)).size(14.0),
-                                );
-                                ui.horizontal_wrapped(|ui| {
-                                    for (_id, name) in &layers {
-                                        if chip(ui, &layer_display_name(name), false).clicked() {
-                                            self.set_layer(name);
-                                        }
-                                    }
-                                });
-                            }
-                            _ => {
-                                ui.label(
-                                    egui::RichText::new("选择该类型后已保存映射，可继续选择按键编辑。")
-                                        .color(rgb(TEXT_FAINT))
-                                        .size(13.0),
-                                );
-                            }
-                        }
-
-                        ui.add_space(6.0);
-                        ui.separator();
-                        ui.add_space(6.0);
-                        let subs_text = if subs.is_empty() {
-                            "无".to_string()
-                        } else {
-                            subs.iter()
-                                .map(|&k| key_code_to_name(k))
-                                .collect::<Vec<_>>()
-                                .join(" + ")
-                        };
-                        ui.label(
-                            egui::RichText::new(format!(
-                                "子命令（最多{}个，当前: {}）",
-                                KeyMapping::MAX_SUB_COMMANDS,
-                                subs_text
-                            ))
-                            .color(rgb(TEXT_DIM))
-                            .size(13.0),
-                        );
-                        self.subs_grid(ui, &subs);
+                                self.subs_grid(ui, &subs);
+                            });
                     });
                 });
             });
@@ -858,32 +922,41 @@ impl MainApp {
     // ------------------------- 帮助视图 -------------------------
     fn show_help(&mut self, ui: &mut egui::Ui) {
         egui::CentralPanel::default_margins()
-            .frame(egui::Frame::NONE.fill(rgb(BG)).inner_margin(egui::Margin::same(14)))
+            .frame(egui::Frame::NONE.fill(rgb(BG)).inner_margin(egui::Margin::same(16)))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    if ui.button("← 返回").clicked() {
+                    if btn_ghost(ui, "← 返回").clicked() {
                         self.view = View::Main;
                     }
                 });
-                ui.add_space(6.0);
+                ui.add_space(10.0);
                 ui.label(
                     egui::RichText::new("Gamepad 键鼠映射 · 使用说明")
                         .color(rgb(TEXT))
-                        .size(18.0)
+                        .size(20.0)
                         .strong(),
                 );
-                ui.add_space(4.0);
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    for (title, body) in HELP_SECTIONS {
-                        ui.add_space(8.0);
-                        ui.label(
-                            egui::RichText::new(title).color(rgb(ACCENT)).size(15.0).strong(),
-                        );
-                        for line in body.lines() {
-                            ui.label(egui::RichText::new(line).color(rgb(TEXT)).size(13.0));
+                ui.label(egui::RichText::new("手柄映射到键鼠的完整说明").color(rgb(TEXT_FAINT)).size(12.0));
+                ui.add_space(6.0);
+                egui::ScrollArea::vertical()
+                    .id_salt("help_scroll")
+                    .show(ui, |ui| {
+                        for (title, body) in HELP_SECTIONS {
+                            ui.add_space(8.0);
+                            card(ui, |ui| {
+                                ui.label(
+                                    egui::RichText::new(title)
+                                        .color(rgb(ACCENT))
+                                        .size(15.0)
+                                        .strong(),
+                                );
+                                ui.add_space(4.0);
+                                for line in body.lines() {
+                                    ui.label(egui::RichText::new(line).color(rgb(TEXT)).size(13.0));
+                                }
+                            });
                         }
-                    }
-                });
+                    });
             });
     }
 }
