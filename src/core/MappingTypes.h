@@ -289,16 +289,16 @@ public:
     const OperationLayer* commonLayer() const {
         return activeSet() ? &activeSet()->commonLayer : nullptr;
     }
-    // 无激活集（operationSets 为空）时返回空引用，避免解引用空指针
+    // 无激活集（operationSets 为空）时返回空引用，避免解引用空指针。
+    // 空容器用成员变量 emptyLayers_（而非 static 局部变量）：避免跨调用
+    // 共享可变状态及多线程同时访问的可写引用风险。
     QVector<OperationLayer>& layers() {
-        static QVector<OperationLayer> empty;
         OperationSet* set = activeSet();
-        return set ? set->layers : empty;
+        return set ? set->layers : emptyLayers_;
     }
     const QVector<OperationLayer>& layers() const {
-        static QVector<OperationLayer> empty;
         const OperationSet* set = activeSet();
-        return set ? set->layers : empty;
+        return set ? set->layers : emptyLayers_;
     }
 
     // 当前激活操作集的显示名（无激活集时返回空串）
@@ -353,4 +353,8 @@ public:
 
     // 生成默认配置（WoW 预设：1 个"默认操作集"，含公共层 + 10 个操作层）
     static ControllerProfile createDefault();
+
+private:
+    // 无激活集时 layers() 返回的空容器（每实例独立，非共享静态变量）
+    QVector<OperationLayer> emptyLayers_;
 };
