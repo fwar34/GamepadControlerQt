@@ -10,11 +10,12 @@ use crate::core::input_types::*;
 use crate::core::mapping_types::{
     ActionType, ControllerProfile, KeyMapping, MappedAction, OperationLayer,
 };
+use crate::ui::overlay::{self, OverlayState};
 use crate::ui::shared::AppShared;
 use crate::ui::theme::*;
 use eframe::egui;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::Ordering;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 // ---- 常用键盘键（与 gpui 版 COMMON_KEYS 一致）----
@@ -189,7 +190,7 @@ struct Snapshot {
 
 pub struct MainApp {
     shared: Arc<AppShared>,
-    overlay_visible: Arc<AtomicBool>,
+    overlay: Arc<Mutex<OverlayState>>,
     view: View,
     selected_button: String,
     edit_layer_id: String,
@@ -199,10 +200,10 @@ pub struct MainApp {
 }
 
 impl MainApp {
-    pub fn new(shared: Arc<AppShared>, overlay_visible: Arc<AtomicBool>) -> Self {
+    pub fn new(shared: Arc<AppShared>) -> Self {
         Self {
             shared,
-            overlay_visible,
+            overlay: Arc::new(Mutex::new(OverlayState::new())),
             view: View::Main,
             selected_button: "A".to_string(),
             edit_layer_id: "Common".to_string(),
@@ -309,8 +310,7 @@ impl MainApp {
     }
 
     fn toggle_overlay(&mut self) {
-        let new = !self.overlay_visible.load(Ordering::SeqCst);
-        self.overlay_visible.store(new, Ordering::SeqCst);
+        self.overlay.lock().unwrap().toggle_visible();
     }
 
     fn quit(&mut self, ctx: &egui::Context) {
@@ -632,7 +632,7 @@ impl MainApp {
                 if btn_ghost(ui, "重置配置").clicked() {
                     self.reset_config();
                 }
-                let ov_txt = if self.overlay_visible.load(Ordering::SeqCst) {
+                let ov_txt = if self.overlay.lock().unwrap().visible.load(Ordering::SeqCst) {
                     "关闭悬浮窗"
                 } else {
                     "显示悬浮窗"
@@ -969,13 +969,14 @@ impl eframe::App for MainApp {
             View::Edit => self.show_edit(ui),
             View::Help => self.show_help(ui),
         }
+        overlay::show(ui.ctx(), &self.shared, &self.overlay);
     }
 }
 
 // ---------------------------------------------------------------------
 // 装配
 // ---------------------------------------------------------------------
-pub fn run(shared: Arc<AppShared>, overlay_visible: Arc<AtomicBool>) -> eframe::Result {
+pub fn run(shared: Arc<AppShared>) -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("Gamepad 键鼠映射")
@@ -989,7 +990,7 @@ pub fn run(shared: Arc<AppShared>, overlay_visible: Arc<AtomicBool>) -> eframe::
         Box::new(move |cc| {
             crate::ui::theme::install_fonts(&cc.egui_ctx);
             crate::ui::theme::apply(&cc.egui_ctx);
-            Ok(Box::new(MainApp::new(shared, overlay_visible)))
+            Ok(Box::new(MainApp::new(shared)))
         }),
     )
 }
