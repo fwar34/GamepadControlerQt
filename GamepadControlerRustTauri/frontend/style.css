@@ -318,6 +318,12 @@ body.overlay-body {
   overflow: hidden;
 }
 
+/* 悬浮窗页面：html 根元素也须透明，否则整个窗口是不透明深色矩形，
+   导致透明窗口失效（悬浮窗"无法设置透明度"）。 */
+html.overlay-html {
+  background: transparent;
+}
+
 .overlay-card {
   margin: 4px;
   display: flex;
@@ -373,6 +379,10 @@ body.overlay-body {
   flex-direction: row;
   flex-wrap: wrap;
   gap: 6px;
+  /* 固定最小高度与 press-chip 一致，按下/无按下时高度不跳变，
+     避免每次按键把下方映射列表往下挤 */
+  min-height: 24px;
+  align-items: center;
 }
 
 .press-chip {

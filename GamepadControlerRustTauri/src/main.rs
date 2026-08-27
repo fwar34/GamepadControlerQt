@@ -17,13 +17,15 @@ mod core;
 mod ui;
 
 use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
-/// 全局共享状态：跨线程共享的核心 + 悬浮窗显隐标志
+/// 全局共享状态：跨线程共享的核心 + 悬浮窗显隐标志 + 悬浮窗透明度
 pub struct AppState {
     pub shared: Arc<ui::shared::AppShared>,
     pub overlay_visible: Arc<AtomicBool>,
+    /// 悬浮窗卡片背景透明度（0.2 ~ 1.0，前端覆盖层应用）
+    pub overlay_opacity: Arc<Mutex<f32>>,
 }
 
 fn main() {
@@ -41,6 +43,7 @@ fn main() {
         .manage(AppState {
             shared,
             overlay_visible: Arc::new(AtomicBool::new(false)),
+            overlay_opacity: Arc::new(Mutex::new(0.85)),
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_snapshot,
@@ -56,6 +59,7 @@ fn main() {
             commands::save_config,
             commands::reset_config,
             commands::toggle_overlay,
+            commands::set_overlay_opacity,
             commands::quit_app,
             commands::get_layer_edit_snapshot,
             commands::get_mapping,

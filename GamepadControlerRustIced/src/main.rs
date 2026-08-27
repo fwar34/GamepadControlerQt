@@ -3,6 +3,11 @@ mod ui;
 
 use ui::app::App;
 
+/// daemon 窗口标题：全部窗口共用
+fn daemon_title(_: &App, _: iced::window::Id) -> String {
+    "Gamepad 键鼠映射".to_string()
+}
+
 fn main() -> iced::Result {
     let shared = std::sync::Arc::new(ui::shared::AppShared::new());
     {
@@ -13,14 +18,15 @@ fn main() -> iced::Result {
     }
 
     // 加载微软雅黑字体并设为默认
-    let mut app = iced::application("Gamepad 键鼠映射", App::update, App::view)
+    let mut app = iced::daemon(App::boot_with_shared(shared), App::update, App::view)
         .theme(App::theme)
         .subscription(App::subscription)
+        .title(daemon_title)
         .default_font(iced::Font::with_name("Microsoft YaHei"));
 
     if let Ok(data) = std::fs::read("C:\\Windows\\Fonts\\msyh.ttc") {
         app = app.font(data);
     }
 
-    app.run_with(App::new_with_shared(shared))
+    app.run()
 }

@@ -65,6 +65,8 @@ pub struct OverlaySnapshot {
     pressed: Vec<String>,
     mouse_toggle: bool,
     mappings: Vec<MappingRow>,
+    /// 悬浮窗卡片背景透明度（0.2 ~ 1.0），前端据此设置背景 alpha
+    opacity: f32,
 }
 
 // ---------------------------------------------------------------------
@@ -264,6 +266,7 @@ pub fn get_overlay_snapshot(state: State<'_, AppState>) -> OverlaySnapshot {
             }
         }
     }
+    let opacity = *state.overlay_opacity.lock().unwrap();
     OverlaySnapshot {
         set_name,
         layer_name,
@@ -271,6 +274,7 @@ pub fn get_overlay_snapshot(state: State<'_, AppState>) -> OverlaySnapshot {
         pressed,
         mouse_toggle,
         mappings,
+        opacity,
     }
 }
 
@@ -387,6 +391,13 @@ pub fn toggle_overlay(app: AppHandle, state: State<'_, AppState>) -> bool {
         let _ = win.hide();
     }
     new
+}
+
+/// 设置悬浮窗卡片背景透明度（0.2 ~ 1.0），由主窗口滑杆调用
+#[tauri::command]
+pub fn set_overlay_opacity(state: State<'_, AppState>, opacity: f32) {
+    let mut o = state.overlay_opacity.lock().unwrap();
+    *o = opacity.clamp(0.2, 1.0);
 }
 
 #[tauri::command]

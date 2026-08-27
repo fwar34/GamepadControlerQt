@@ -10,14 +10,12 @@ use crate::core::mapping_types::{ActionType, KeyMapping, MappedAction};
 use crate::ui::shared::AppShared;
 use crate::ui::theme::*;
 use crate::ui::theme::rgb;
-use iced::widget::{button, column, container, horizontal_rule, row, text, text_input, Space};
+use iced::widget::{
+    button, column, container, mouse_area, row, scrollable, slider, text, text_input, Space,
+};
+use iced::window;
 use iced::{Background, Element, Length, Subscription, Task, Theme};
 use std::sync::Arc;
-
-// ---- 辅助：颜色转 Background ----
-fn bg(hex: u32) -> Background {
-    Background::Color(rgb(hex))
-}
 
 // ---- 输入框用途 ----
 #[derive(Clone, Debug)]
@@ -65,6 +63,18 @@ pub enum Message {
     Quit,
 
     PollTick,
+    /// 空操作：用于弹窗面板捕获点击，避免误触遮罩关闭
+    Noop,
+
+    // ---- 窗口 / 悬浮窗 ----
+    MainOpened(window::Id),
+    OverlayOpened(window::Id),
+    /// 某个窗口已被关闭（daemon 模式下据此判断是否整体退出）
+    WindowClosed(window::Id),
+    /// 拖动悬浮窗（在悬浮窗标题栏触发）
+    OverlayDrag,
+    OverlayOpacityChanged(f32),
+    OverlayExpanded(bool),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -166,12 +176,16 @@ pub struct App {
     edit_selected: usize,
     edit_action_kind: EditActionKind,
     edit_held: Vec<usize>,
-    show_overlay: bool,
+    main_window: Option<window::Id>,
+    overlay_window: Option<window::Id>,
+    overlay_opacity: f32,
+    overlay_expanded: bool,
     show_help: bool,
 }
 
 impl App {
-    pub fn new_with_shared(shared: Arc<AppShared>) -> impl Fn() -> (Self, Task<Message>) {
+    /// boot 逻辑：daemon 不自动开窗，启动时打开主窗口
+    pub fn boot_with_shared(shared: Arc<AppShared>) -> impl Fn() -> (Self, Task<Message>) {
         move || {
             let app = App {
                 shared: Arc::clone(&shared),
@@ -186,20 +200,30 @@ impl App {
                 edit_selected: 0,
                 edit_action_kind: EditActionKind::Keyboard,
                 edit_held: Vec::new(),
-                show_overlay: false,
+                main_window: None,
+                overlay_window: None,
+                overlay_opacity: 0.85,
+                overlay_expanded: false,
                 show_help: false,
             };
-            (app, Task::none())
+            let (_id, open) = iced::window::open(main_window_settings());
+            (app, open.map(Message::MainOpened))
         }
     }
 
-    pub fn theme(_app: &App) -> Theme {
-        Theme::TokyoNight
+    pub fn theme(_app: &App, _window: window::Id) -> Option<Theme> {
+        Some(Theme::TokyoNight)
     }
 
     pub fn subscription(_app: &App) -> Subscription<Message> {
-        iced::time::every(std::time::Duration::from_millis(50))
-            .map(|_| Message::PollTick)
+        Subscription::batch([
+            // 200ms 轮询一次即可：状态刷新足够，按钮点击是事件驱动即时响应。
+            // 若频率过高（如 50ms），tiny-skia 软件渲染下持续重绘会让界面卡顿。
+            iced::time::every(std::time::Duration::from_millis(200))
+                .map(|_| Message::PollTick),
+            // 监听窗口关闭：主窗口关闭则整体退出，悬浮窗关闭仅清理状态
+            iced::window::close_events().map(Message::WindowClosed),
+        ])
     }
 
     fn poll_update(&mut self) {
@@ -331,14 +355,52 @@ impl App {
                     core.load_profile(def);
                 }
             }
-            Message::ToggleOverlay => self.show_overlay = !self.show_overlay,
+            Message::ToggleOverlay => return self.toggle_overlay(),
             Message::ToggleHelp => self.show_help = !self.show_help,
-            Message::Quit => return iced::exit(),
+            Message::Noop => {}
+            Message::MainOpened(id) => self.main_window = Some(id),
+            Message::OverlayOpened(id) => self.overlay_window = Some(id),
+            Message::WindowClosed(id) => {
+                if self.overlay_window == Some(id) {
+                    // 悬浮窗被单独关闭：仅清理状态，程序继续运行
+                    self.overlay_window = None;
+                } else if self.main_window == Some(id) {
+                    // 主窗口被关闭（点 X / 右键任务栏关闭）→ 整体退出程序
+                    self.main_window = None;
+                    return iced::exit();
+                }
+            }
+            Message::OverlayDrag => {
+                // 在悬浮窗标题栏按下左键 → 拖动整个窗口
+                if let Some(id) = self.overlay_window {
+                    return iced::window::drag(id);
+                }
+            }
+            Message::OverlayOpacityChanged(v) => self.overlay_opacity = v.clamp(0.2, 1.0),
+            Message::OverlayExpanded(b) => self.overlay_expanded = b,
+            Message::Quit => {
+                // daemon 模式：仅关单个窗口不会退出，需显式退出整个应用
+                return iced::exit();
+            }
         }
         Task::none()
     }
 
-    pub fn view(&self) -> Element<Message> {
+    /// 开关独立悬浮窗：未开则创建新窗口，已开则关闭
+    fn toggle_overlay(&mut self) -> Task<Message> {
+        if let Some(id) = self.overlay_window.take() {
+            iced::window::close(id)
+        } else {
+            let (_id, open) = iced::window::open(overlay_window_settings());
+            open.map(Message::OverlayOpened)
+        }
+    }
+
+    pub fn view(&self, window_id: window::Id) -> Element<Message> {
+        // 按窗口分发：悬浮窗窗口显示独立悬浮窗，其余显示主界面
+        if self.overlay_window == Some(window_id) {
+            return self.overlay_window_view(window_id);
+        }
         let running = self.shared.running.load(std::sync::atomic::Ordering::SeqCst);
 
         let (sets, active_set_id, layer_info) = {
@@ -370,7 +432,7 @@ impl App {
 
         let header = row![
             text("Gamepad 键鼠映射").size(20).color(rgb(TEXT)),
-            Space::with_width(Length::Fill),
+            Space::new().width(Length::Fill),
             text(status_text).size(14).color(rgb(status_color)),
         ];
 
@@ -429,6 +491,18 @@ impl App {
         ]
         .spacing(4);
 
+        // 悬浮窗透明度滑杆
+        let opacity_row = row![
+            text("悬浮窗透明度").size(12).color(rgb(TEXT_DIM)).width(96),
+            slider(0.2..=1.0, self.overlay_opacity, Message::OverlayOpacityChanged)
+                .width(Length::Fill),
+            text(format!("{:.0}%", self.overlay_opacity * 100.0))
+                .size(12)
+                .color(rgb(TEXT))
+                .width(48),
+        ]
+        .spacing(4);
+
         let toggle_label = if running { "停止映射" } else { "开始映射" };
         let toggle_bg = if running { DANGER } else { ACCENT };
         let btn_toggle = button(text(toggle_label).size(16))
@@ -436,10 +510,12 @@ impl App {
             .style(move |_, _| styled_btn("", toggle_bg, BG_DEEP))
             .on_press(Message::ToggleMapping);
 
+        let overlay_label = if self.overlay_window.is_some() { "关闭悬浮窗" } else { "显示悬浮窗" };
         let btn_row = row![
             btn_toggle,
             small_button("保存配置", Message::SaveConfig),
             small_button("重置默认", Message::ResetConfig),
+            small_button(overlay_label, Message::ToggleOverlay),
             small_button("使用说明", Message::ToggleHelp),
             small_button("退出", Message::Quit),
         ]
@@ -476,7 +552,7 @@ impl App {
             text("操作集管理").size(12).color(rgb(TEXT_DIM)),
             chips,
             action_row,
-            Space::with_height(8),
+            Space::new().height(8),
             layer_col,
         ]
         .spacing(6)
@@ -486,40 +562,128 @@ impl App {
             info_col,
             text("全局设置").size(12).color(rgb(TEXT_DIM)),
             settings_col,
+            text("悬浮窗").size(12).color(rgb(TEXT_DIM)),
+            opacity_row,
             btn_row,
         ]
         .spacing(8)
         .width(Length::Fill);
 
-        let main_layout = row![left_panel, Space::with_width(12), right_panel];
+        let main_layout = row![left_panel, Space::new().width(12), right_panel];
 
-        let content: Element<Message> = match &self.edit_target {
-            EditTarget::None => main_layout.into(),
-            EditTarget::Layer(_) => {
-                column![main_layout, horizontal_rule(1), self.view_layer_edit()].into()
-            }
-        };
+        // 基础页面：主界面。层编辑/帮助/悬浮窗改为模态弹窗，不再内联挤占页面。
+        let page: Element<Message> = container(
+            column![header, input_row, Space::new().height(8), main_layout].spacing(8),
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .padding(16)
+        .style(|_| iced::widget::container::Style {
+            background: Some(Background::Color(rgb(BG))),
+            ..Default::default()
+        })
+        .into();
 
-        let content: Element<Message> = if self.show_help {
-            column![content, horizontal_rule(1), crate::ui::help::help_view()].into()
+        // 弹窗优先级：层编辑 > 使用说明
+        if matches!(self.edit_target, EditTarget::Layer(_)) {
+            iced::widget::stack([page, self.modal_layer_edit()]).into()
+        } else if self.show_help {
+            iced::widget::stack([page, self.modal_help()]).into()
         } else {
-            content
-        };
+            page
+        }
+    }
 
-        let content: Element<Message> = if self.show_overlay {
-            column![content, horizontal_rule(1), crate::ui::overlay::overlay_view(&self.shared, false)].into()
-        } else {
-            content
-        };
+    // =================================================================
+    // 模态弹窗：半透明遮罩 + 居中面板（iced 0.14 移除了 modal，用
+    // Stack + MouseArea 组合实现；点击遮罩关闭，点击面板不穿透）
+    // =================================================================
 
-        container(column![header, input_row, Space::with_height(8), content].spacing(8))
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .padding(16)
-            .style(|_| iced::widget::container::Style {
-                background: Some(Background::Color(rgb(BG))),
-                ..Default::default()
-            })
+    fn modal_panel<'a>(
+        &self,
+        content: Element<'a, Message>,
+        close: Message,
+    ) -> Element<'a, Message> {
+        // 遮罩层：全屏半透明，点击任意处关闭弹窗
+        let backdrop = mouse_area(
+            container(Space::new())
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(|_| container::Style {
+                    background: Some(Background::Color(argb(0x99000000))),
+                    ..Default::default()
+                }),
+        )
+        .on_press(close);
+
+        // 面板层：居中显示，捕获点击避免误触遮罩关闭
+        let panel = mouse_area(
+            container(content)
+                .padding(16)
+                .style(|_| container::Style {
+                    background: Some(Background::Color(rgb(BG_PANEL))),
+                    border: iced::Border::default()
+                        .width(1.0)
+                        .color(rgb(BORDER))
+                        .rounded(10),
+                    ..Default::default()
+                }),
+        )
+        .on_press(Message::Noop);
+
+        iced::widget::stack([
+            backdrop.into(),
+            container(panel)
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
+                .into(),
+        ])
+        .into()
+    }
+
+    /// 层编辑弹窗（内容可滚动）
+    fn modal_layer_edit(&self) -> Element<Message> {
+        let content = scrollable(self.view_layer_edit()).width(700).height(480);
+        self.modal_panel(content.into(), Message::CloseLayerEdit)
+    }
+
+    /// 使用说明弹窗（内容可滚动）
+    fn modal_help(&self) -> Element<Message> {
+        let content = scrollable(crate::ui::help::help_view())
+            .width(700)
+            .height(480);
+        self.modal_panel(content.into(), Message::ToggleHelp)
+    }
+
+    // =================================================================
+    // 独立悬浮窗窗口（可拖动、置顶、透明、透明度可调）
+    // =================================================================
+
+    fn overlay_window_view(&self, _id: window::Id) -> Element<'_, Message> {
+        // 标题栏：按下左键即可拖动整个窗口
+        let title_bar = mouse_area(
+            row![
+                text("⚡ 悬浮窗").size(13).color(rgb(ACCENT)),
+                Space::new().width(Length::Fill),
+                text("按住拖动").size(10).color(rgb(TEXT_FAINT)),
+            ]
+            .padding([4, 8]),
+        )
+        .on_press(Message::OverlayDrag);
+
+        let expand_label = if self.overlay_expanded { "收起映射" } else { "展开映射" };
+        let btn_row = row![
+            small_button(expand_label, Message::OverlayExpanded(!self.overlay_expanded)),
+            small_button("关闭", Message::ToggleOverlay),
+        ]
+        .spacing(4);
+
+        let content =
+            crate::ui::overlay::overlay_view(&self.shared, self.overlay_expanded, self.overlay_opacity);
+
+        column![title_bar, content, btn_row]
+            .spacing(4)
+            .padding(4)
             .into()
     }
 
@@ -620,7 +784,7 @@ impl App {
         let right_col = column![
             row![
                 text(format!("编辑层: {}", layer_display_name(&layer_name))).size(16).color(rgb(TEXT)),
-                Space::with_width(Length::Fill),
+                Space::new().width(Length::Fill),
                 text(format!("当前: {} ({})", controller_button_display_name(all_btns[self.edit_selected]), desc))
                     .size(12).color(rgb(TEXT_DIM)),
                 small_button("清除映射", Message::LayerEditClearMapping),
@@ -635,7 +799,7 @@ impl App {
         ]
         .spacing(6);
 
-        row![container(grid).width(180), Space::with_width(12), right_col].into()
+        row![container(grid).width(180), Space::new().width(12), right_col].into()
     }
 
     // ---- 辅助方法 ----
@@ -807,4 +971,30 @@ fn setting_row(label: &str, value: f32, key: SettingKey) -> Element<'static, Mes
     ]
     .spacing(4)
     .into()
+}
+
+// =====================================================================
+// 窗口配置
+// =====================================================================
+
+/// 主窗口设置：居中、可缩放
+fn main_window_settings() -> iced::window::Settings {
+    iced::window::Settings {
+        size: iced::Size::new(960.0, 640.0),
+        position: iced::window::Position::Centered,
+        ..Default::default()
+    }
+}
+
+/// 悬浮窗设置：无边框、透明、置顶、不可缩放
+fn overlay_window_settings() -> iced::window::Settings {
+    iced::window::Settings {
+        size: iced::Size::new(360.0, 260.0),
+        position: iced::window::Position::Default,
+        transparent: true,
+        decorations: false,
+        resizable: false,
+        level: iced::window::Level::AlwaysOnTop,
+        ..Default::default()
+    }
 }

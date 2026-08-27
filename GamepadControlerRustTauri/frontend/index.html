@@ -40,6 +40,13 @@
         <div id="info-col" style="display:flex;flex-direction:column;gap:2px;"></div>
         <div class="dim">全局设置</div>
         <div id="settings-col" style="display:flex;flex-direction:column;gap:8px;"></div>
+        <div class="dim">悬浮窗</div>
+        <div class="slider-row">
+          <div class="slider-label">透明度</div>
+          <button class="mini" onclick="App.adjustOpacity(-0.05)">−</button>
+          <div class="slider-val" id="opacity-val">85%</div>
+          <button class="mini" onclick="App.adjustOpacity(0.05)">+</button>
+        </div>
         <div class="btn-row">
           <button class="btn-toggle stopped" id="btn-toggle">开始映射</button>
           <button class="btn" id="btn-save">保存配置</button>

@@ -73,6 +73,10 @@ function render(snap) {
   $('ov-warn').style.display = snap.mouse_toggle ? 'block' : 'none';
   $('overlay-card').style.borderColor = snap.mouse_toggle ? '#f0a34a' : '#7fc9c4';
 
+  // 卡片背景透明度跟随设置（透明度越低越透明，配合透明窗口）
+  const op = typeof snap.opacity === 'number' ? snap.opacity : 0.85;
+  $('overlay-card').style.background = 'rgba(43, 45, 49, ' + op + ')';
+
   // 展开：映射列表
   $('ov-mappings').style.display = expanded ? 'flex' : 'none';
   if (expanded) {

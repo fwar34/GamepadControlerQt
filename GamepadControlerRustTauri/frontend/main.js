@@ -75,6 +75,7 @@ let renameValue = '';
 let activeSetId = '';
 let activeSetName = '';
 let running = false;
+let overlayOpacity = 0.85;   // 悬浮窗透明度（0.2 ~ 1.0），与后端一致
 
 let prevMain = null;
 let prevEdit = null;
@@ -322,6 +323,14 @@ const App = {
 
   // ---- 设置 ----
   adjust(key, delta) { invoke('adjust_setting', { key, delta }); },
+
+  // ---- 悬浮窗 ----
+  adjustOpacity(delta) {
+    overlayOpacity = Math.min(1, Math.max(0.2, overlayOpacity + delta));
+    const v = $('opacity-val');
+    if (v) v.textContent = Math.round(overlayOpacity * 100) + '%';
+    invoke('set_overlay_opacity', { opacity: overlayOpacity });
+  },
 
   // ---- 视图切换 ----
   openEdit(id) {

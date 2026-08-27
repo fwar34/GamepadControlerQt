@@ -11,7 +11,8 @@ use iced::{Background, Element};
 
 pub fn overlay_view<'a>(
     shared: &'a AppShared,
-    _expanded: bool,
+    expanded: bool,
+    opacity: f32,
 ) -> Element<'a, crate::ui::app::Message> {
     let core = shared.core.lock().unwrap();
 
@@ -94,7 +95,7 @@ pub fn overlay_view<'a>(
         content = content.push(warn);
     }
 
-    if _expanded {
+    if expanded {
         let mut mappings_col = column![
             text(format!("当前层映射: {}", layer_name)).size(12).color(rgb(TEXT_DIM)),
         ]
@@ -124,11 +125,20 @@ pub fn overlay_view<'a>(
         content = content.push(mappings_col);
     }
 
+    // 背景透明度跟随设置：透明度越低越透明（配合透明窗口）
+    let alpha = opacity.clamp(0.2, 1.0);
+    let bg_color = iced::Color {
+        r: (0x2b as f32) / 255.0,
+        g: (0x2d as f32) / 255.0,
+        b: (0x31 as f32) / 255.0,
+        a: alpha,
+    };
+
     container(content)
         .width(320)
         .padding(12)
         .style(move |_| iced::widget::container::Style {
-            background: Some(Background::Color(argb(0xd02b2d31))),
+            background: Some(Background::Color(bg_color)),
             border: iced::Border {
                 width: 1.0,
                 color: if mouse_toggle { rgb(WARN) } else { rgb(ACCENT) },

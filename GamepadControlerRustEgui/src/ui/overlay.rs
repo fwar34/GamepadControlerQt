@@ -29,8 +29,7 @@ pub struct OverlayState {
 impl OverlayState {
     pub fn new() -> Self {
         Self {
-            // 临时：默认显示，用于验证显示链路（验证后改回 false）
-            visible: AtomicBool::new(true),
+            visible: AtomicBool::new(false),
             expanded: false,
         }
     }
