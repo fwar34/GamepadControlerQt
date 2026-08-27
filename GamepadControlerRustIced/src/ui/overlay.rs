@@ -54,8 +54,8 @@ pub fn overlay_view<'a>(
     drop(core);
 
     let title = row![
-        text(format!("操作集: {}", set_name)).size(14).color(rgb(ACCENT)),
-        text(format!("  当前层: {}", layer_name)).size(14).color(rgb(TEXT)),
+        text(format!("操作集: {}", set_name)).size(15).color(rgb(ACCENT)),
+        text(format!("  当前层: {}", layer_name)).size(15).color(rgb(TEXT)),
     ];
 
     let conn_text = if connected { "● 手柄已连接" } else { "○ 手柄未连接" };
@@ -65,12 +65,12 @@ pub fn overlay_view<'a>(
     if pressed.is_empty() {
         // 与按下状态的 chip 保持相同内边距，避免高度不一致导致下方内容被挤动
         press_row = press_row.push(
-            container(text("无按键按下").size(12).color(rgb(TEXT_FAINT)))
+            container(text("无按键按下").size(13).color(rgb(TEXT_FAINT)))
                 .padding([2, 8]),
         );
     } else {
         for name in &pressed {
-            let chip = container(text(name.clone()).size(12).color(rgb(BG_DEEP)))
+            let chip = container(text(name.clone()).size(13).color(rgb(BG_DEEP)))
                 .padding([2, 8])
                 .style(|_| iced::widget::container::Style {
                     background: Some(Background::Color(rgb(ACCENT))),
@@ -83,13 +83,13 @@ pub fn overlay_view<'a>(
 
     let mut content = column![
         title,
-        row![text(conn_text).size(12).color(rgb(conn_color))],
+        row![text(conn_text).size(13).color(rgb(conn_color))],
         press_row,
     ]
     .spacing(6);
 
     if mouse_toggle {
-        let warn = container(text("⚠ 鼠标长按锁存中，再按一次解除").size(12).color(rgb(BG_DEEP)))
+        let warn = container(text("⚠ 鼠标长按锁存中，再按一次解除").size(13).color(rgb(BG_DEEP)))
             .padding([3, 8])
             .style(|_| iced::widget::container::Style {
                 background: Some(Background::Color(rgb(WARN))),
@@ -101,20 +101,20 @@ pub fn overlay_view<'a>(
 
     if expanded {
         let mut mappings_col = column![
-            text(format!("当前层映射: {}", layer_name)).size(12).color(rgb(TEXT_DIM)),
+            text(format!("当前层映射: {}", layer_name)).size(13).color(rgb(TEXT_DIM)),
         ]
         .spacing(2);
 
         if mappings.is_empty() {
-            mappings_col = mappings_col.push(text("（无映射）").size(12).color(rgb(TEXT_FAINT)));
+            mappings_col = mappings_col.push(text("（无映射）").size(13).color(rgb(TEXT_FAINT)));
         } else {
             for (btn, desc, held) in &mappings {
                 let color = if *held { WARN } else { ACCENT };
                 mappings_col = mappings_col.push(
                     row![
-                        text(btn.clone()).size(12).color(rgb(color)),
-                        text("→").size(12).color(rgb(TEXT_DIM)),
-                        text(desc.clone()).size(12).color(rgb(TEXT)),
+                        text(btn.clone()).size(13).color(rgb(color)),
+                        text("→").size(13).color(rgb(TEXT_DIM)),
+                        text(desc.clone()).size(13).color(rgb(TEXT)),
                     ]
                     .spacing(4)
                 );
@@ -122,9 +122,9 @@ pub fn overlay_view<'a>(
         }
 
         mappings_col = mappings_col
-            .push(row![text("左摇杆").size(12).color(rgb(ACCENT)), text("→").size(12).color(rgb(TEXT_DIM)), text("WASD 移动").size(12).color(rgb(TEXT))].spacing(4))
-            .push(row![text("右摇杆").size(12).color(rgb(ACCENT)), text("→").size(12).color(rgb(TEXT_DIM)), text("视角控制").size(12).color(rgb(TEXT))].spacing(4))
-            .push(text("（点击标题收起）").size(12).color(rgb(TEXT_FAINT)));
+            .push(row![text("左摇杆").size(13).color(rgb(ACCENT)), text("→").size(13).color(rgb(TEXT_DIM)), text("WASD 移动").size(13).color(rgb(TEXT))].spacing(4))
+            .push(row![text("右摇杆").size(13).color(rgb(ACCENT)), text("→").size(13).color(rgb(TEXT_DIM)), text("视角控制").size(13).color(rgb(TEXT))].spacing(4))
+            .push(text("（点击标题收起）").size(13).color(rgb(TEXT_FAINT)));
 
         content = content.push(mappings_col);
     }

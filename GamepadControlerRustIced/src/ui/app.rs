@@ -448,15 +448,15 @@ impl App {
         let header = row![
             text("Gamepad 键鼠映射").size(20).color(rgb(TEXT)),
             Space::new().width(Length::Fill),
-            text(status_text).size(14).color(rgb(status_color)),
+            text(status_text).size(15).color(rgb(status_color)),
         ];
 
-        let mut chips = row![text("操作集").size(12).color(rgb(TEXT_DIM))].spacing(4);
+        let mut chips = row![text("操作集").size(13).color(rgb(TEXT_DIM))].spacing(4);
         for (id, name) in &sets {
             let active = *id == active_set_id;
             let chip_id = id.clone();
             let (b, f) = if active { (ACCENT, BG_DEEP) } else { (BG_INSET, TEXT) };
-            let chip = button(text(name.clone()).size(12))
+            let chip = button(text(name.clone()).size(13))
                 .style(move |_, _| styled_btn("", b, f))
                 .on_press(Message::SwitchSet(chip_id));
             chips = chips.push(chip);
@@ -485,7 +485,7 @@ impl App {
                 layer_display_name(name).to_string()
             };
             let (b, f) = if *active { (ACCENT, BG_DEEP) } else { (BG_INSET, TEXT) };
-            let btn = button(text(display).size(12))
+            let btn = button(text(display).size(13))
                 .width(Length::Fill)
                 .style(move |_, _| styled_btn("", b, f))
                 .on_press(Message::OpenLayerEdit(lid));
@@ -508,11 +508,11 @@ impl App {
 
         // 悬浮窗透明度滑杆
         let opacity_row = row![
-            text("悬浮窗透明度").size(12).color(rgb(TEXT_DIM)).width(96),
+            text("悬浮窗透明度").size(13).color(rgb(TEXT_DIM)).width(96),
             slider(0.2..=1.0, self.overlay_opacity, Message::OverlayOpacityChanged)
                 .width(Length::Fill),
             text(format!("{:.0}%", self.overlay_opacity * 100.0))
-                .size(12)
+                .size(13)
                 .color(rgb(TEXT))
                 .width(48),
         ]
@@ -520,7 +520,7 @@ impl App {
 
         let toggle_label = if running { "停止映射" } else { "开始映射" };
         let toggle_bg = if running { DANGER } else { ACCENT };
-        let btn_toggle = button(text(toggle_label).size(16))
+        let btn_toggle = button(text(toggle_label).size(17))
             .padding([8, 20])
             .style(move |_, _| styled_btn("", toggle_bg, BG_DEEP))
             .on_press(Message::ToggleMapping);
@@ -537,10 +537,10 @@ impl App {
         .spacing(8);
 
         let info_col = column![
-            text(format!("当前操作集: {}", self.set_name)).size(16).color(rgb(TEXT)),
-            text(format!("当前层: {}", self.layer_name)).size(16).color(rgb(TEXT)),
+            text(format!("当前操作集: {}", self.set_name)).size(17).color(rgb(TEXT)),
+            text(format!("当前层: {}", self.layer_name)).size(17).color(rgb(TEXT)),
             text(self.mouse_toggle.clone().unwrap_or_else(|| "无长按锁存".into()))
-                .size(12)
+                .size(13)
                 .color(rgb(if self.mouse_toggle.is_some() { WARN } else { TEXT_FAINT })),
         ]
         .spacing(4);
@@ -552,7 +552,7 @@ impl App {
                 InputMode::Copy(_) => "复制为新操作集",
             };
             input_row = input_row
-                .push(text(hint).size(12).color(rgb(TEXT_DIM)))
+                .push(text(hint).size(13).color(rgb(TEXT_DIM)))
                 .push(
                     text_input("输入名称", &self.input_text)
                         .width(Length::Fill)
@@ -564,7 +564,7 @@ impl App {
         }
 
         let left_panel = column![
-            text("操作集管理").size(12).color(rgb(TEXT_DIM)),
+            text("操作集管理").size(13).color(rgb(TEXT_DIM)),
             chips,
             action_row,
             Space::new().height(8),
@@ -575,9 +575,9 @@ impl App {
 
         let right_panel = column![
             info_col,
-            text("全局设置").size(12).color(rgb(TEXT_DIM)),
+            text("全局设置").size(13).color(rgb(TEXT_DIM)),
             settings_col,
-            text("悬浮窗").size(12).color(rgb(TEXT_DIM)),
+            text("悬浮窗").size(13).color(rgb(TEXT_DIM)),
             opacity_row,
             btn_row,
         ]
@@ -678,9 +678,9 @@ impl App {
         // 标题栏：按下左键即可拖动整个窗口
         let title_bar = mouse_area(
             row![
-                text("⚡ 悬浮窗").size(13).color(rgb(ACCENT)),
+                text("⚡ 悬浮窗").size(14).color(rgb(ACCENT)),
                 Space::new().width(Length::Fill),
-                text("按住拖动").size(10).color(rgb(TEXT_FAINT)),
+                text("按住拖动").size(11).color(rgb(TEXT_FAINT)),
             ]
             .padding([4, 8]),
         )
@@ -714,7 +714,7 @@ impl App {
             let (bg_c, fg_c) = if is_selected { (ACCENT, BG_DEEP) }
                 else if is_pressed { (WARN, BG_DEEP) }
                 else { (BG_INSET, TEXT) };
-            let btn = button(text(controller_button_display_name(*b)).size(12))
+            let btn = button(text(controller_button_display_name(*b)).size(13))
                 .width(Length::Fill)
                 .padding([4, 8])
                 .style(move |_, _| styled_btn("", bg_c, fg_c))
@@ -732,7 +732,7 @@ impl App {
             let active = self.edit_action_kind == kind;
             let label = EDIT_ACTION_LABELS[i];
             let (b, f) = if active { (ACCENT, BG_DEEP) } else { (BG_INSET, TEXT) };
-            let btn = button(text(label).size(12))
+            let btn = button(text(label).size(13))
                 .padding([3, 8])
                 .style(move |_, _| styled_btn("", b, f))
                 .on_press(Message::LayerEditSetActionKind(i));
@@ -743,7 +743,7 @@ impl App {
             EditActionKind::Keyboard => {
                 let mut keys = row![].spacing(2);
                 for (code, label) in COMMON_KEYS {
-                    let btn = button(text(label).size(11))
+                    let btn = button(text(label).size(12))
                         .padding([2, 6])
                         .style(|_, _| styled_btn("", BG_INSET, TEXT))
                         .on_press(Message::LayerEditSetKeyTarget(code));
@@ -755,7 +755,7 @@ impl App {
                 let mouse_names = ["左键", "右键", "中键", "前进", "后退"];
                 let mut keys = row![].spacing(2);
                 for (i, label) in mouse_names.iter().enumerate() {
-                    let btn = button(text(*label).size(11))
+                    let btn = button(text(*label).size(12))
                         .padding([2, 6])
                         .style(|_, _| styled_btn("", BG_INSET, TEXT))
                         .on_press(Message::LayerEditSetMouseTarget(i));
@@ -768,7 +768,7 @@ impl App {
                 for (lid, lname) in switch_targets.iter() {
                     let display = layer_display_name(lname);
                     let lid = lid.clone();
-                    let btn = button(text(display).size(11))
+                    let btn = button(text(display).size(12))
                         .padding([2, 6])
                         .style(|_, _| styled_btn("", BG_INSET, TEXT))
                         .on_press(Message::LayerEditSetLayerTarget(lid));
@@ -776,14 +776,14 @@ impl App {
                 }
                 keys.into()
             }
-            _ => text("该动作无需额外目标").size(12).color(rgb(TEXT_FAINT)).into(),
+            _ => text("该动作无需额外目标").size(13).color(rgb(TEXT_FAINT)).into(),
         };
 
         let mut sub_row = row![].spacing(2);
         for (code, label) in COMMON_KEYS {
             let active = subs.contains(&code);
             let (b, f) = if active { (ACCENT_DIM, BG_DEEP) } else { (BG_INSET, TEXT) };
-            let btn = button(text(label).size(11))
+            let btn = button(text(label).size(12))
                 .padding([2, 6])
                 .style(move |_, _| styled_btn("", b, f))
                 .on_press(Message::LayerEditToggleSub(code));
@@ -798,17 +798,17 @@ impl App {
 
         let right_col = column![
             row![
-                text(format!("编辑层: {}", layer_display_name(&layer_name))).size(16).color(rgb(TEXT)),
+                text(format!("编辑层: {}", layer_display_name(&layer_name))).size(17).color(rgb(TEXT)),
                 Space::new().width(Length::Fill),
                 text(format!("当前: {} ({})", controller_button_display_name(all_btns[self.edit_selected]), desc))
-                    .size(12).color(rgb(TEXT_DIM)),
+                    .size(13).color(rgb(TEXT_DIM)),
                 small_button("清除映射", Message::LayerEditClearMapping),
             ],
-            text("动作类型").size(12).color(rgb(TEXT_DIM)),
+            text("动作类型").size(13).color(rgb(TEXT_DIM)),
             kind_row,
             target,
             text(format!("子命令（最多{}个，当前: {}）", KeyMapping::MAX_SUB_COMMANDS, subs_text))
-                .size(12).color(rgb(TEXT_DIM)),
+                .size(13).color(rgb(TEXT_DIM)),
             sub_row,
             small_button("关闭层编辑", Message::CloseLayerEdit),
         ]
@@ -945,7 +945,7 @@ impl App {
 // =====================================================================
 
 fn small_button(label: &str, msg: Message) -> Element<'static, Message> {
-    button(text(label.to_owned()).size(12))
+    button(text(label.to_owned()).size(13))
         .padding([6, 12])
         .style(|_, _| button::Style {
             background: Some(Background::Color(rgb(BG_INSET))),
@@ -963,8 +963,8 @@ fn small_button(label: &str, msg: Message) -> Element<'static, Message> {
 
 fn setting_row(label: &str, value: f32, key: SettingKey) -> Element<'static, Message> {
     row![
-        text(label.to_owned()).size(12).color(rgb(TEXT_DIM)).width(96),
-        button(text("−").size(12))
+        text(label.to_owned()).size(13).color(rgb(TEXT_DIM)).width(96),
+        button(text("−").size(13))
             .padding([2, 6])
             .style(|_, _| button::Style {
                 background: Some(Background::Color(rgb(BG_INSET))),
@@ -973,8 +973,8 @@ fn setting_row(label: &str, value: f32, key: SettingKey) -> Element<'static, Mes
                 ..Default::default()
             })
             .on_press(Message::AdjustSetting(key, -0.01)),
-        text(format!("{:.2}", value)).size(12).color(rgb(TEXT)).width(56),
-        button(text("+").size(12))
+        text(format!("{:.2}", value)).size(13).color(rgb(TEXT)).width(56),
+        button(text("+").size(13))
             .padding([2, 6])
             .style(|_, _| button::Style {
                 background: Some(Background::Color(rgb(BG_INSET))),

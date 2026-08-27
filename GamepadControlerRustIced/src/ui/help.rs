@@ -10,8 +10,8 @@ use iced::Element;
 pub fn help_view() -> Element<'static, crate::ui::app::Message> {
     let section = |title: &str, body: &str| -> Element<'static, crate::ui::app::Message> {
         column![
-            text(title.to_string()).size(16).color(rgb(ACCENT)),
-            text(body.to_string()).size(14).color(rgb(TEXT)),
+            text(title.to_string()).size(17).color(rgb(ACCENT)),
+            text(body.to_string()).size(15).color(rgb(TEXT)),
         ]
         .spacing(4)
         .into()
