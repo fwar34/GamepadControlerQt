@@ -63,7 +63,11 @@ pub fn overlay_view<'a>(
 
     let mut press_row = row![].spacing(4);
     if pressed.is_empty() {
-        press_row = press_row.push(text("无按键按下").size(12).color(rgb(TEXT_FAINT)));
+        // 与按下状态的 chip 保持相同内边距，避免高度不一致导致下方内容被挤动
+        press_row = press_row.push(
+            container(text("无按键按下").size(12).color(rgb(TEXT_FAINT)))
+                .padding([2, 8]),
+        );
     } else {
         for name in &pressed {
             let chip = container(text(name.clone()).size(12).color(rgb(BG_DEEP)))

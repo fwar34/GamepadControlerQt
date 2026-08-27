@@ -216,13 +216,28 @@ impl App {
     }
 
     pub fn subscription(_app: &App) -> Subscription<Message> {
+        // 按键/连接事件通知：手柄线程有变化时即时刷新 UI，
+        // 避免固定 200ms 轮询跟不上快速按键（悬浮窗按键显示要跟手）。
+        let button_stream = Subscription::run(|| {
+            iced::stream::channel(100, async |mut output| {
+                let mut rx = crate::ui::shared::notif_receiver();
+                while let Some(rx) = rx.as_mut() {
+                    use iced::futures::sink::SinkExt;
+                    use iced::futures::StreamExt;
+                    while rx.next().await.is_some() {
+                        let _ = output.send(Message::PollTick).await;
+                    }
+                }
+            })
+        });
+
         Subscription::batch([
-            // 200ms 轮询一次即可：状态刷新足够，按钮点击是事件驱动即时响应。
-            // 若频率过高（如 50ms），tiny-skia 软件渲染下持续重绘会让界面卡顿。
+            // 兜底轮询：连接/层状态等低频变化，200ms 刷新一次即可
             iced::time::every(std::time::Duration::from_millis(200))
                 .map(|_| Message::PollTick),
             // 监听窗口关闭：主窗口关闭则整体退出，悬浮窗关闭仅清理状态
             iced::window::close_events().map(Message::WindowClosed),
+            button_stream,
         ])
     }
 

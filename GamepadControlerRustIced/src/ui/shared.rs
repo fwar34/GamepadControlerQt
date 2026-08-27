@@ -13,8 +13,17 @@
 use crate::core::app::AppCore;
 use crate::core::mapper::LookRunner;
 use crate::core::xinput_source::{SourceCallback, SourceEvent, XInputGamepadSource};
+use iced::futures::channel::mpsc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
+
+/// 按键/连接事件通知通道（接收端，全局单例，UI 订阅流取用）
+static NOTIF_RX: OnceLock<Mutex<Option<mpsc::Receiver<()>>>> = OnceLock::new();
+
+/// UI 订阅流取走按键通知接收端
+pub fn notif_receiver() -> Option<mpsc::Receiver<()>> {
+    NOTIF_RX.get()?.lock().ok()?.take()
+}
 
 pub struct AppShared {
     pub core: Arc<Mutex<AppCore>>,
@@ -35,11 +44,22 @@ impl AppShared {
 
         let look = Arc::new(Mutex::new(LookRunner::new(injector, look_state)));
 
+        // 按键/连接事件通知通道：手柄线程有变化时通知 UI 即时刷新
+        let (notif_tx, notif_rx) = mpsc::channel(128);
+        let _ = NOTIF_RX.set(Mutex::new(Some(notif_rx)));
+
         // 手柄源回调：锁定 core 后分发事件
         let core_cb = Arc::clone(&core);
+        let notif_tx_cb = Arc::new(Mutex::new(notif_tx));
         let callback: SourceCallback = Arc::new(move |e: SourceEvent| {
             if let Ok(mut c) = core_cb.lock() {
                 c.handle_source_event(e);
+            }
+            // 按键/连接状态变化 → 通知 UI 即时刷新（悬浮窗按键显示需跟手）
+            if matches!(e, SourceEvent::Button(..) | SourceEvent::Connected(_)) {
+                if let Ok(mut tx) = notif_tx_cb.lock() {
+                    let _ = tx.try_send(());
+                }
             }
         });
         let source = Arc::new(Mutex::new(XInputGamepadSource::new(callback)));
