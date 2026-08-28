@@ -226,3 +226,17 @@ document.addEventListener('pointerdown', (e) => { // 监听指针按下（事件
   el.appendChild(span); // 挂入波纹节点
   setTimeout(() => span.remove(), 600); // 动画结束后移除
 });
+
+// ---------------------------------------------------------------------
+// 首帧渲染完成后显示窗口（窗口以 visible:false 创建，避免打开瞬间白屏闪动）
+// ---------------------------------------------------------------------
+(async () => {
+  try {
+    await tick(); // 立即先执行一轮渲染
+  } catch (e) {
+    console.error('首帧渲染失败:', e); // 渲染出错打印日志
+  }
+  getCurrentWindow().show(); // 内容就绪后再显示窗口，杜绝白屏
+})();
+// 兜底：若首帧渲染异常导致未显示，1.5 秒后强制显示，避免窗口"打不开"
+setTimeout(() => getCurrentWindow().show(), 1500);

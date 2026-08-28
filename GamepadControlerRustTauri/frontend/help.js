@@ -60,3 +60,10 @@ function renderHelp() {
 $('help-close').addEventListener('click', () => getCurrentWindow().close()); // 右上角“关闭”按钮：关闭本窗口
 
 renderHelp(); // 页面加载后渲染使用说明内容
+
+// ---------------------------------------------------------------------
+// 渲染完成后显示窗口（窗口以 visible:false 创建，避免打开瞬间白屏闪动）
+// ---------------------------------------------------------------------
+requestAnimationFrame(() => getCurrentWindow().show()); // 下一帧绘制后显示窗口，杜绝白屏
+// 兜底：确保窗口最终可见
+setTimeout(() => getCurrentWindow().show(), 1500);

@@ -160,6 +160,8 @@ function openEditWindow(id) {
         minWidth: 680,   // 最小宽度
         minHeight: 520,  // 最小高度
         center: true,    // 创建后居中
+        backgroundColor: '#26282c', // 窗口背景色（避免打开瞬间白屏闪动）
+        visible: false,  // 先隐藏，页面首帧渲染完成后由 edit.js 调用 show() 再显示，杜绝白屏
       });
       win.once('tauri://error', (e) => console.error('编辑窗口创建失败:', e)); // 监听创建失败事件并打印
     }
@@ -181,6 +183,8 @@ function openHelpWindow() {
       minWidth: 500,      // 最小宽度
       minHeight: 420,     // 最小高度
       center: true,       // 创建后居中
+      backgroundColor: '#26282c', // 窗口背景色（避免打开瞬间白屏闪动）
+      visible: false,     // 先隐藏，页面渲染完成后由 help.js 调用 show() 再显示，杜绝白屏
     });
     win.once('tauri://error', (e) => console.error('使用说明窗口创建失败:', e)); // 监听创建失败事件并打印
   });
