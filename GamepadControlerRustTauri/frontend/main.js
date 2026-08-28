@@ -7,6 +7,8 @@
 
 // 解构出 Tauri 的 invoke 命令调用函数（用于调用后端 Rust 命令）
 const { invoke } = window.__TAURI__.core;
+// 解构出 getCurrentWindow（用于首帧渲染完成后显示主窗口）
+const { getCurrentWindow } = window.__TAURI__.window;
 // 解构出 WebviewWindow 类（用于创建 / 查找独立窗口）
 const { WebviewWindow } = window.__TAURI__.webviewWindow;
 // 解构出 emit 事件发送函数（用于向编辑窗口广播层 id）
@@ -288,3 +290,17 @@ document.addEventListener('pointerdown', (e) => { // 监听任意指针按下（
   el.appendChild(span); // 将波纹挂到元素内
   setTimeout(() => span.remove(), 600); // 动画结束后移除波纹节点
 });
+
+// ---------------------------------------------------------------------
+// 首帧渲染完成后显示主窗口（主窗口以 visible:false 创建，避免冷启动白屏闪动）
+// ---------------------------------------------------------------------
+(async () => {
+  try {
+    await tick(); // 立即先执行一轮渲染
+  } catch (e) {
+    console.error('首帧渲染失败:', e); // 渲染出错打印日志
+  }
+  getCurrentWindow().show(); // 内容就绪后再显示窗口，杜绝白屏
+})();
+// 兜底：若首帧渲染异常导致未显示，1.5 秒后强制显示，避免窗口"打不开"
+setTimeout(() => getCurrentWindow().show(), 1500);
