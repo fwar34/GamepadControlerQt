@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>编辑层</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 独立「编辑层」窗口：由主窗口 WebviewWindow("edit-win") 打开，
+       层 id 通过 URL hash 传入（edit.html#<layerId>） -->
+  <div class="root">
+    <div class="edit-header">
+      <div id="edit-title" class="edit-title">编辑层</div>
+      <button class="btn" id="edit-close">关闭</button>
+    </div>
+    <div class="edit-body">
+      <div id="edit-grid" class="edit-grid"></div>
+      <div class="edit-divider"></div>
+      <div class="edit-right">
+        <div class="edit-current-row">
+          <div id="edit-current" class="dim"></div>
+          <button class="btn danger" id="edit-clear">清除映射</button>
+        </div>
+        <div class="dim">动作类型</div>
+        <div id="edit-kinds" class="chips-row"></div>
+        <div id="edit-target"></div>
+        <div id="edit-subs-label" class="dim"></div>
+        <div id="edit-subs" class="chips-row"></div>
+        <div class="faint">说明：切层动作由公共层的 SwitchLayer 映射驱动；操作层子命令用于组合键（如 Ctrl+1）。</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="edit.js"></script>
+</body>
+</html>

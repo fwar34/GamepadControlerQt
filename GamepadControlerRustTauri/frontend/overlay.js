@@ -69,9 +69,10 @@ function render(snap) {
     ).join('');
   }
 
-  // L3 锁存警示（边框变橙 + 警示条）
-  $('ov-warn').style.display = snap.mouse_toggle ? 'block' : 'none';
-  $('overlay-card').style.borderColor = snap.mouse_toggle ? '#f0a34a' : '#7fc9c4';
+  // L3 锁存警示（边框变橙 + 警示条）；类切换触发边框/光晕过渡动画
+  const mouseToggle = !!snap.mouse_toggle;
+  $('ov-warn').style.display = mouseToggle ? 'block' : 'none';
+  $('overlay-card').classList.toggle('mouse-toggle', mouseToggle);
 
   // 卡片背景透明度跟随设置（透明度越低越透明，配合透明窗口）
   const op = typeof snap.opacity === 'number' ? snap.opacity : 0.85;

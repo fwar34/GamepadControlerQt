@@ -61,39 +61,7 @@
     </div>
   </div>
 
-  <!-- ==================== 层编辑视图 ==================== -->
-  <div id="view-edit" class="root" style="display:none">
-    <div class="edit-header">
-      <div id="edit-title" class="edit-title">编辑层</div>
-      <button class="btn" id="edit-back">返回</button>
-    </div>
-    <div class="edit-body">
-      <div id="edit-grid" class="edit-grid"></div>
-      <div class="edit-divider"></div>
-      <div class="edit-right">
-        <div class="edit-current-row">
-          <div id="edit-current" class="dim"></div>
-          <button class="btn danger" id="edit-clear">清除映射</button>
-        </div>
-        <div class="dim">动作类型</div>
-        <div id="edit-kinds" class="chips-row"></div>
-        <div id="edit-target"></div>
-        <div id="edit-subs-label" class="dim"></div>
-        <div id="edit-subs" class="chips-row"></div>
-        <div class="faint">说明：切层动作由公共层的 SwitchLayer 映射驱动；操作层子命令用于组合键（如 Ctrl+1）。</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ==================== 帮助视图 ==================== -->
-  <div id="view-help" class="root help-view" style="display:none">
-    <div class="edit-header">
-      <div class="edit-title">Gamepad 键鼠映射 · 使用说明</div>
-      <button class="btn" id="help-back">返回</button>
-    </div>
-    <div id="help-sections" class="help-sections"></div>
-  </div>
-
+  <!-- 层编辑（edit.html）与使用说明（help.html）为独立窗口 -->
   <script src="main.js"></script>
 </body>
 </html>
