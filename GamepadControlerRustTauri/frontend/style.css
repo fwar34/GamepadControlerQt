@@ -5,662 +5,670 @@
          ACCENT #7fc9c4 / ACCENT2 #4fc08d / WARN #f0a34a / DANGER #e5554f
    ===================================================================== */
 
+/* 全局重置：所有元素统一盒模型，清除默认内外边距 */
 * {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+  box-sizing: border-box; /* 宽度包含内边距与边框，布局更可控 */
+  margin: 0; /* 清除默认外边距 */
+  padding: 0; /* 清除默认内边距 */
 }
 
+/* html 与 body 根元素通用样式 */
 html, body {
-  height: 100%;
-  font-family: 'Microsoft YaHei UI', 'Microsoft YaHei', 'Segoe UI', sans-serif;
-  font-size: 14px;
-  color: #e8eaee;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-  overflow: hidden;
+  height: 100%; /* 占满视口高度，保证内部可滚动区域正确 */
+  font-family: 'Microsoft YaHei UI', 'Microsoft YaHei', 'Segoe UI', sans-serif; /* 中文字体优先，回退系统无衬线字体 */
+  font-size: 14px; /* 基准字号 */
+  color: #e8eaee; /* 主文字颜色 */
+  -webkit-font-smoothing: antialiased; /* WebKit 字体抗锯齿 */
+  text-rendering: optimizeLegibility; /* 提升文字渲染质量 */
+  overflow: hidden; /* 隐藏页面级滚动条（滚动由内部容器负责） */
 }
 
+/* body 专属样式：深色渐变背景 */
 body {
-  background: linear-gradient(180deg, #26282c 0%, #222428 100%);
+  background: linear-gradient(180deg, #26282c 0%, #222428 100%); /* 顶部稍亮、底部稍暗的深色渐变 */
 }
 
 /* ---- 环境光晕背景（柔和渐变光斑） ---- */
 body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
+  content: ''; /* 伪元素必须设置内容才能显示 */
+  position: fixed; /* 固定定位，铺满视口且不随滚动 */
+  inset: 0; /* 上下左右贴齐视口边缘 */
+  pointer-events: none; /* 不拦截鼠标事件，避免挡住按钮点击 */
+  z-index: 0; /* 置于底层背景之上、内容之下 */
   background:
-    radial-gradient(1100px 480px at 18% -12%, rgba(127, 201, 196, 0.12), transparent 62%),
-    radial-gradient(900px 460px at 108% 112%, rgba(79, 192, 141, 0.09), transparent 60%),
-    radial-gradient(700px 380px at 88% -8%, rgba(240, 163, 74, 0.05), transparent 55%);
+    radial-gradient(1100px 480px at 18% -12%, rgba(127, 201, 196, 0.12), transparent 62%), /* 左上角青色光晕 */
+    radial-gradient(900px 460px at 108% 112%, rgba(79, 192, 141, 0.09), transparent 60%), /* 右下角绿色光晕 */
+    radial-gradient(700px 380px at 88% -8%, rgba(240, 163, 74, 0.05), transparent 55%); /* 右上角暖橙色微光 */
 }
 
 /* ---- 自定义滚动条 ---- */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #3f434a; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #4a4e55; }
+::-webkit-scrollbar { width: 8px; height: 8px; } /* 滚动条宽度与高度 */
+::-webkit-scrollbar-track { background: transparent; } /* 滚动条轨道透明，融入背景 */
+::-webkit-scrollbar-thumb { background: #3f434a; border-radius: 4px; } /* 滚动条滑块：深灰圆角 */
+::-webkit-scrollbar-thumb:hover { background: #4a4e55; } /* 悬停滑块颜色变亮 */
 
 /* ---- 主窗口根布局（视图切换淡入上浮） ---- */
 .root {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  padding: 14px 16px;
-  gap: 8px;
-  position: relative;
-  z-index: 1;
-  animation: viewIn 0.28s ease-out;
+  height: 100%; /* 占满视口高度 */
+  display: flex; /* 弹性布局 */
+  flex-direction: column; /* 垂直排列子元素 */
+  padding: 14px 16px; /* 上下 14px、左右 16px 内边距 */
+  gap: 8px; /* 子元素间距 */
+  position: relative; /* 相对定位，作为内部定位基准 */
+  z-index: 1; /* 位于环境光晕（z-index:0）之上 */
+  animation: viewIn 0.28s ease-out; /* 页面进入时淡入上浮动画 */
 }
 
+/* viewIn：淡入 + 轻微上浮的入场动画 */
 @keyframes viewIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: none; }
+  from { opacity: 0; transform: translateY(8px); } /* 起始：透明且下移 8px */
+  to   { opacity: 1; transform: none; } /* 结束：完全显示、归位 */
 }
 
+/* 顶部标题栏容器 */
 .header {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
+  display: flex; /* 弹性布局 */
+  flex-direction: row; /* 水平排列 */
+  align-items: center; /* 垂直居中 */
+  justify-content: space-between; /* 左右两端对齐（标题左、状态右） */
+  flex-shrink: 0; /* 不允许压缩，保持高度 */
 }
 
+/* 程序主标题 */
 .title {
-  font-size: 21px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  background: linear-gradient(135deg, #e8eaee 0%, #9fd6d2 70%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
+  font-size: 21px; /* 标题字号 */
+  font-weight: 700; /* 加粗 */
+  letter-spacing: 0.5px; /* 字间距 */
+  background: linear-gradient(135deg, #e8eaee 0%, #9fd6d2 70%); /* 渐变文字颜色 */
+  -webkit-background-clip: text; /* 让背景裁剪到文字（WebKit） */
+  background-clip: text; /* 让背景裁剪到文字（标准） */
+  color: transparent; /* 文字本体透明，露出渐变背景 */
+  -webkit-text-fill-color: transparent; /* WebKit 下文字填充透明 */
 }
 
+/* 连接状态胶囊 */
 .status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: #a3a8b2;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid #3a3e45;
-  border-radius: 999px;
-  padding: 4px 12px;
-  transition: border-color 0.25s ease;
+  display: flex; /* 弹性布局 */
+  align-items: center; /* 垂直居中 */
+  gap: 8px; /* 圆点与文字间距 */
+  font-size: 13px; /* 字号 */
+  color: #a3a8b2; /* 次要文字颜色 */
+  background: rgba(255, 255, 255, 0.04); /* 极淡的白色半透明底 */
+  border: 1px solid #3a3e45; /* 深灰描边 */
+  border-radius: 999px; /* 胶囊形圆角 */
+  padding: 4px 12px; /* 内边距 */
+  transition: border-color 0.25s ease; /* 边框颜色平滑过渡 */
 }
-.status:has(.dot.ok) { border-color: rgba(79, 192, 141, 0.35); }
+.status:has(.dot.ok) { border-color: rgba(79, 192, 141, 0.35); } /* 圆点为绿色（已连接）时边框泛绿 */
 
 /* ---- 状态圆点（运行中呼吸光晕） ---- */
 .dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  display: inline-block;
-  flex-shrink: 0;
-  transition: background 0.3s ease, box-shadow 0.3s ease;
+  width: 10px; /* 圆点直径 */
+  height: 10px; /* 圆点直径 */
+  border-radius: 50%; /* 圆形 */
+  display: inline-block; /* 行内块，可设宽高 */
+  flex-shrink: 0; /* 不允许压缩 */
+  transition: background 0.3s ease, box-shadow 0.3s ease; /* 颜色与光晕平滑过渡 */
 }
 .dot.ok {
-  background: #4fc08d;
-  box-shadow: 0 0 0 0 rgba(79, 192, 141, 0.55);
-  animation: dotPulse 2.2s ease-out infinite;
+  background: #4fc08d; /* 已连接：绿色 */
+  box-shadow: 0 0 0 0 rgba(79, 192, 141, 0.55); /* 初始无光晕 */
+  animation: dotPulse 2.2s ease-out infinite; /* 循环呼吸光晕动画 */
 }
-.dot.off { background: #6c727c; }
+.dot.off { background: #6c727c; } /* 未连接：灰色 */
 
+/* dotPulse：圆点呼吸光晕扩散动画 */
 @keyframes dotPulse {
-  0%   { box-shadow: 0 0 0 0 rgba(79, 192, 141, 0.5); }
-  70%  { box-shadow: 0 0 0 8px rgba(79, 192, 141, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(79, 192, 141, 0); }
+  0%   { box-shadow: 0 0 0 0 rgba(79, 192, 141, 0.5); } /* 起始无光晕 */
+  70%  { box-shadow: 0 0 0 8px rgba(79, 192, 141, 0); } /* 光晕向外扩散并淡出 */
+  100% { box-shadow: 0 0 0 0 rgba(79, 192, 141, 0); } /* 归位 */
 }
 
 /* ---- 面板（玻璃卡片） ---- */
 .body {
-  display: flex;
-  flex-direction: row;
-  gap: 12px;
-  flex: 1;
-  min-height: 0;
+  display: flex; /* 弹性布局 */
+  flex-direction: row; /* 左右两栏 */
+  gap: 12px; /* 两栏间距 */
+  flex: 1; /* 占满剩余高度 */
+  min-height: 0; /* 允许内部滚动（防止溢出） */
 }
 
 .panel {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px;
-  background: linear-gradient(180deg, rgba(63, 67, 74, 0.28), rgba(47, 49, 54, 0.92) 42%);
-  border: 1px solid #3a3e45;
-  border-radius: 14px;
-  min-height: 0;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  display: flex; /* 弹性布局 */
+  flex-direction: column; /* 垂直排列内容 */
+  gap: 10px; /* 内容间距 */
+  padding: 14px; /* 内边距 */
+  background: linear-gradient(180deg, rgba(63, 67, 74, 0.28), rgba(47, 49, 54, 0.92) 42%); /* 玻璃拟态半透明渐变背景 */
+  border: 1px solid #3a3e45; /* 深灰描边 */
+  border-radius: 14px; /* 圆角 */
+  min-height: 0; /* 允许内部滚动 */
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.04); /* 外部投影 + 顶部内高光（玻璃感） */
 }
 
-.left-panel { width: 268px; flex-shrink: 0; }
-.right-panel { flex: 1; min-width: 0; }
+.left-panel { width: 268px; flex-shrink: 0; } /* 左栏固定宽度、不允许压缩 */
+.right-panel { flex: 1; min-width: 0; } /* 右栏占满剩余宽度、允许收缩 */
 
 .panel-title {
-  font-size: 13px;
-  color: #a3a8b2;
-  letter-spacing: 0.3px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  font-size: 13px; /* 面板标题字号 */
+  color: #a3a8b2; /* 次要文字颜色 */
+  letter-spacing: 0.3px; /* 字间距 */
+  display: flex; /* 弹性布局 */
+  align-items: center; /* 垂直居中 */
+  gap: 6px; /* 与左侧装饰条间距 */
 }
 .panel-title::before {
-  content: '';
-  width: 3px;
-  height: 12px;
-  border-radius: 2px;
-  background: linear-gradient(180deg, #7fc9c4, #4fc08d);
-  flex-shrink: 0;
+  content: ''; /* 装饰条 */
+  width: 3px; /* 装饰条宽度 */
+  height: 12px; /* 装饰条高度 */
+  border-radius: 2px; /* 圆角 */
+  background: linear-gradient(180deg, #7fc9c4, #4fc08d); /* 青色到绿色的渐变 */
+  flex-shrink: 0; /* 不允许压缩 */
 }
 
-.dim { color: #a3a8b2; font-size: 13px; }
-.faint { color: #6c727c; font-size: 12px; }
-.info-line { font-size: 16px; color: #e8eaee; }
-.info-sub { font-size: 13px; }
+.dim { color: #a3a8b2; font-size: 13px; } /* 次要文字样式 */
+.faint { color: #6c727c; font-size: 12px; } /* 弱化文字样式 */
+.info-line { font-size: 16px; color: #e8eaee; } /* 信息大字行 */
+.info-sub { font-size: 13px; } /* 信息小字行 */
 
 /* ---- 通用按钮（悬停上浮 + 波纹） ---- */
 .btn {
-  background: linear-gradient(180deg, #3a3e45, #33363b);
-  border: 1px solid #464b53;
-  color: #e8eaee;
-  border-radius: 8px;
-  padding: 6px 12px;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 13px;
-  white-space: nowrap;
-  user-select: none;
-  position: relative;
-  overflow: hidden;
-  transition: background 0.18s ease, border-color 0.18s ease,
-              transform 0.12s ease, box-shadow 0.18s ease;
+  background: linear-gradient(180deg, #3a3e45, #33363b); /* 深灰渐变底 */
+  border: 1px solid #464b53; /* 描边 */
+  color: #e8eaee; /* 文字颜色 */
+  border-radius: 8px; /* 圆角 */
+  padding: 6px 12px; /* 内边距 */
+  cursor: pointer; /* 手型光标 */
+  font-family: inherit; /* 继承字体 */
+  font-size: 13px; /* 字号 */
+  white-space: nowrap; /* 文字不换行 */
+  user-select: none; /* 禁止选中文本 */
+  position: relative; /* 相对定位（波纹绝对定位的基准） */
+  overflow: hidden; /* 裁剪溢出内容（波纹不外溢） */
+  transition: background 0.18s ease, border-color 0.18s ease, /* 背景/描边过渡 */
+              transform 0.12s ease, box-shadow 0.18s ease; /* 位移/投影过渡 */
 }
 .btn:hover {
-  background: linear-gradient(180deg, #434850, #3a3e45);
-  border-color: #7fc9c4;
-  transform: translateY(-1px);
-  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.35);
+  background: linear-gradient(180deg, #434850, #3a3e45); /* 悬停变亮 */
+  border-color: #7fc9c4; /* 悬停描边变青色 */
+  transform: translateY(-1px); /* 上浮 1px */
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.35); /* 悬停投影 */
 }
-.btn:active { transform: translateY(0) scale(0.97); box-shadow: none; }
+.btn:active { transform: translateY(0) scale(0.97); box-shadow: none; } /* 按下：复位并微缩 */
 
 .btn.danger {
-  background: linear-gradient(180deg, #f0645f, #e5554f);
-  border-color: #e5554f;
-  color: #fff;
+  background: linear-gradient(180deg, #f0645f, #e5554f); /* 危险按钮：红色渐变 */
+  border-color: #e5554f; /* 红色描边 */
+  color: #fff; /* 白色文字 */
 }
 .btn.danger:hover {
-  border-color: #ff8a85;
-  box-shadow: 0 5px 14px rgba(229, 85, 79, 0.4);
+  border-color: #ff8a85; /* 悬停描边更亮红 */
+  box-shadow: 0 5px 14px rgba(229, 85, 79, 0.4); /* 红色光晕投影 */
 }
 
 .btn-row {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
+  display: flex; /* 弹性布局 */
+  flex-direction: row; /* 水平排列 */
+  flex-wrap: wrap; /* 允许换行 */
+  gap: 6px; /* 按钮间距 */
+  align-items: center; /* 垂直居中 */
 }
 
 /* ---- 操作集 chip / 子命令 ---- */
 .chips-row {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
+  display: flex; /* 弹性布局 */
+  flex-direction: row; /* 水平排列 */
+  flex-wrap: wrap; /* 允许换行 */
+  gap: 6px; /* 间距 */
+  align-items: center; /* 垂直居中 */
 }
 
 .chip {
-  background: linear-gradient(180deg, #383c43, #33363b);
-  border: 1px solid #3f434a;
-  border-radius: 8px;
-  padding: 4px 10px;
-  font-size: 13px;
-  color: #e8eaee;
-  cursor: pointer;
-  user-select: none;
-  position: relative;
-  overflow: hidden;
-  animation: popIn 0.22s ease-out;
-  transition: background 0.16s ease, border-color 0.16s ease,
-              transform 0.12s ease, box-shadow 0.16s ease;
+  background: linear-gradient(180deg, #383c43, #33363b); /* 深灰渐变底 */
+  border: 1px solid #3f434a; /* 描边 */
+  border-radius: 8px; /* 圆角 */
+  padding: 4px 10px; /* 内边距 */
+  font-size: 13px; /* 字号 */
+  color: #e8eaee; /* 文字颜色 */
+  cursor: pointer; /* 手型光标 */
+  user-select: none; /* 禁止选中文本 */
+  position: relative; /* 相对定位（波纹基准） */
+  overflow: hidden; /* 裁剪波纹 */
+  animation: popIn 0.22s ease-out; /* 入场弹入动画 */
+  transition: background 0.16s ease, border-color 0.16s ease, /* 背景/描边过渡 */
+              transform 0.12s ease, box-shadow 0.16s ease; /* 位移/投影过渡 */
 }
 .chip:hover {
-  border-color: #7fc9c4;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  border-color: #7fc9c4; /* 悬停描边变青 */
+  transform: translateY(-1px); /* 上浮 */
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3); /* 悬停投影 */
 }
-.chip:active { transform: translateY(0) scale(0.96); }
+.chip:active { transform: translateY(0) scale(0.96); } /* 按下微缩 */
 .chip.active {
-  background: linear-gradient(135deg, #7fc9c4, #5aa39f);
-  border-color: #7fc9c4;
-  color: #232529;
-  font-weight: 600;
-  box-shadow: 0 3px 12px rgba(127, 201, 196, 0.35);
+  background: linear-gradient(135deg, #7fc9c4, #5aa39f); /* 选中态：青色渐变 */
+  border-color: #7fc9c4; /* 青色描边 */
+  color: #232529; /* 深色文字 */
+  font-weight: 600; /* 加粗 */
+  box-shadow: 0 3px 12px rgba(127, 201, 196, 0.35); /* 青色光晕 */
 }
 .chip.sub.active {
-  background: linear-gradient(135deg, #5aa39f, #4a8f8b);
-  border-color: #5aa39f;
-  color: #232529;
+  background: linear-gradient(135deg, #5aa39f, #4a8f8b); /* 子命令选中态：较深的青色渐变 */
+  border-color: #5aa39f; /* 描边 */
+  color: #232529; /* 深色文字 */
 }
 
 /* ---- 层列表 ---- */
 .layer-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-  overflow-y: auto;
-  padding-top: 4px;
+  display: flex; /* 弹性布局 */
+  flex-direction: column; /* 垂直排列 */
+  gap: 6px; /* 层按钮间距 */
+  flex: 1; /* 占满剩余高度 */
+  overflow-y: auto; /* 超出滚动 */
+  padding-top: 4px; /* 顶部留白 */
 }
 
 .layer-btn {
-  background: linear-gradient(180deg, #383c43, #33363b);
-  border: 1px solid #3f434a;
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 13px;
-  color: #e8eaee;
-  cursor: pointer;
-  user-select: none;
-  position: relative;
-  overflow: hidden;
-  animation: popIn 0.24s ease-out;
-  transition: background 0.16s ease, border-color 0.16s ease,
-              transform 0.12s ease, box-shadow 0.16s ease;
+  background: linear-gradient(180deg, #383c43, #33363b); /* 深灰渐变底 */
+  border: 1px solid #3f434a; /* 描边 */
+  border-radius: 8px; /* 圆角 */
+  padding: 6px 10px; /* 内边距 */
+  font-size: 13px; /* 字号 */
+  color: #e8eaee; /* 文字颜色 */
+  cursor: pointer; /* 手型光标 */
+  user-select: none; /* 禁止选中文本 */
+  position: relative; /* 相对定位（波纹基准） */
+  overflow: hidden; /* 裁剪波纹 */
+  animation: popIn 0.24s ease-out; /* 入场动画 */
+  transition: background 0.16s ease, border-color 0.16s ease, /* 背景/描边过渡 */
+              transform 0.12s ease, box-shadow 0.16s ease; /* 位移/投影过渡 */
 }
 .layer-btn:hover {
-  border-color: #7fc9c4;
-  transform: translateX(2px);
+  border-color: #7fc9c4; /* 悬停描边变青 */
+  transform: translateX(2px); /* 悬停向右轻移 */
 }
-.layer-btn:active { transform: translateX(0) scale(0.98); }
+.layer-btn:active { transform: translateX(0) scale(0.98); } /* 按下复位微缩 */
 .layer-btn.active {
-  background: linear-gradient(135deg, #7fc9c4, #5aa39f);
-  border-color: #7fc9c4;
-  color: #232529;
-  font-weight: 600;
-  box-shadow: 0 3px 12px rgba(127, 201, 196, 0.3);
+  background: linear-gradient(135deg, #7fc9c4, #5aa39f); /* 当前层：青色渐变 */
+  border-color: #7fc9c4; /* 青色描边 */
+  color: #232529; /* 深色文字 */
+  font-weight: 600; /* 加粗 */
+  box-shadow: 0 3px 12px rgba(127, 201, 196, 0.3); /* 青色光晕 */
 }
 
 /* ---- 元素入场动画 ---- */
 @keyframes popIn {
-  from { opacity: 0; transform: translateY(4px) scale(0.98); }
-  to   { opacity: 1; transform: none; }
+  from { opacity: 0; transform: translateY(4px) scale(0.98); } /* 起始：透明、下移并微缩 */
+  to   { opacity: 1; transform: none; } /* 结束：完全显示、归位 */
 }
 
 /* ---- 设置行 ---- */
 .slider-row {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid transparent;
-  border-radius: 8px;
-  transition: border-color 0.18s ease, background 0.18s ease;
+  display: flex; /* 弹性布局 */
+  flex-direction: row; /* 水平排列 */
+  align-items: center; /* 垂直居中 */
+  gap: 8px; /* 间距 */
+  padding: 4px 8px; /* 内边距 */
+  background: rgba(255, 255, 255, 0.02); /* 极淡白底 */
+  border: 1px solid transparent; /* 透明描边（悬停时显现） */
+  border-radius: 8px; /* 圆角 */
+  transition: border-color 0.18s ease, background 0.18s ease; /* 描边/背景过渡 */
 }
 .slider-row:hover {
-  border-color: #3f434a;
-  background: rgba(255, 255, 255, 0.04);
+  border-color: #3f434a; /* 悬停显示描边 */
+  background: rgba(255, 255, 255, 0.04); /* 悬停背景稍亮 */
 }
-.slider-label { width: 96px; color: #a3a8b2; font-size: 13px; }
+.slider-label { width: 96px; color: #a3a8b2; font-size: 13px; } /* 设置项名称：固定宽度 */
 .slider-val {
-  width: 52px;
-  color: #e8eaee;
-  font-size: 13px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
+  width: 52px; /* 数值宽度 */
+  color: #e8eaee; /* 数值颜色 */
+  font-size: 13px; /* 字号 */
+  text-align: center; /* 居中 */
+  font-variant-numeric: tabular-nums; /* 等宽数字，避免宽度跳动 */
 }
 
 .mini {
-  width: 24px;
-  height: 24px;
-  background: #33363b;
-  border: 1px solid #3f434a;
-  color: #e8eaee;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  overflow: hidden;
-  transition: background 0.16s ease, border-color 0.16s ease,
-              transform 0.12s ease;
+  width: 24px; /* 小按钮宽 */
+  height: 24px; /* 小按钮高 */
+  background: #33363b; /* 深灰底 */
+  border: 1px solid #3f434a; /* 描边 */
+  color: #e8eaee; /* 符号颜色 */
+  border-radius: 6px; /* 圆角 */
+  cursor: pointer; /* 手型光标 */
+  font-size: 14px; /* 符号字号 */
+  line-height: 1; /* 行高（防止符号偏位） */
+  display: flex; /* 弹性布局 */
+  align-items: center; /* 水平居中 */
+  justify-content: center; /* 垂直居中 */
+  position: relative; /* 相对定位（波纹基准） */
+  overflow: hidden; /* 裁剪波纹 */
+  transition: background 0.16s ease, border-color 0.16s ease, /* 背景/描边过渡 */
+              transform 0.12s ease; /* 位移过渡 */
 }
 .mini:hover {
-  background: #3a3e45;
-  border-color: #7fc9c4;
-  transform: translateY(-1px);
+  background: #3a3e45; /* 悬停变亮 */
+  border-color: #7fc9c4; /* 悬停描边变青 */
+  transform: translateY(-1px); /* 上浮 */
 }
-.mini:active { transform: translateY(0) scale(0.94); }
+.mini:active { transform: translateY(0) scale(0.94); } /* 按下微缩 */
 
 /* ---- 开始/停止映射 ---- */
 .btn-toggle {
-  border: none;
-  border-radius: 10px;
-  padding: 10px 24px;
-  cursor: pointer;
-  font-size: 16px;
-  font-weight: 600;
-  font-family: inherit;
-  color: #232529;
-  position: relative;
-  overflow: hidden;
-  transition: background 0.28s ease, box-shadow 0.28s ease,
-              transform 0.12s ease;
-  letter-spacing: 1px;
+  border: none; /* 无描边 */
+  border-radius: 10px; /* 圆角 */
+  padding: 10px 24px; /* 内边距 */
+  cursor: pointer; /* 手型光标 */
+  font-size: 16px; /* 字号 */
+  font-weight: 600; /* 加粗 */
+  font-family: inherit; /* 继承字体 */
+  color: #232529; /* 深色文字 */
+  position: relative; /* 相对定位（波纹基准） */
+  overflow: hidden; /* 裁剪波纹 */
+  transition: background 0.28s ease, box-shadow 0.28s ease, /* 背景/投影过渡 */
+              transform 0.12s ease; /* 位移过渡 */
+  letter-spacing: 1px; /* 字间距 */
 }
-.btn-toggle:hover { transform: translateY(-1px); }
-.btn-toggle:active { transform: translateY(0) scale(0.97); }
+.btn-toggle:hover { transform: translateY(-1px); } /* 悬停上浮 */
+.btn-toggle:active { transform: translateY(0) scale(0.97); } /* 按下微缩 */
 .btn-toggle.stopped {
-  background: linear-gradient(135deg, #7fc9c4, #5aa39f);
-  box-shadow: 0 5px 18px rgba(127, 201, 196, 0.35);
+  background: linear-gradient(135deg, #7fc9c4, #5aa39f); /* 停止态：青色渐变 */
+  box-shadow: 0 5px 18px rgba(127, 201, 196, 0.35); /* 青色光晕 */
 }
 .btn-toggle.stopped:hover {
-  box-shadow: 0 8px 22px rgba(127, 201, 196, 0.45);
+  box-shadow: 0 8px 22px rgba(127, 201, 196, 0.45); /* 停止态悬停光晕增强 */
 }
 .btn-toggle.running {
-  background: linear-gradient(135deg, #f0645f, #e5554f);
-  color: #fff;
-  box-shadow: 0 5px 18px rgba(229, 85, 79, 0.35);
+  background: linear-gradient(135deg, #f0645f, #e5554f); /* 运行态：红色渐变 */
+  color: #fff; /* 白色文字 */
+  box-shadow: 0 5px 18px rgba(229, 85, 79, 0.35); /* 红色光晕 */
 }
 .btn-toggle.running:hover {
-  box-shadow: 0 8px 22px rgba(229, 85, 79, 0.45);
+  box-shadow: 0 8px 22px rgba(229, 85, 79, 0.45); /* 运行态悬停光晕增强 */
 }
 
 /* ---- 点击波纹 ---- */
 .ripple {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.28);
-  transform: scale(0);
-  animation: rippleAnim 0.55s ease-out forwards;
-  pointer-events: none;
+  position: absolute; /* 绝对定位在按钮内部 */
+  border-radius: 50%; /* 圆形 */
+  background: rgba(255, 255, 255, 0.28); /* 半透明白色波纹 */
+  transform: scale(0); /* 初始缩放为 0 */
+  animation: rippleAnim 0.55s ease-out forwards; /* 扩散动画（保持最终态） */
+  pointer-events: none; /* 不拦截点击 */
 }
 @keyframes rippleAnim {
-  to { transform: scale(4); opacity: 0; }
+  to { transform: scale(4); opacity: 0; } /* 扩散到 4 倍并淡出 */
 }
 
 /* ---- 重命名输入行 ---- */
 .rename-row {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  animation: viewIn 0.22s ease-out;
+  display: flex; /* 弹性布局 */
+  flex-direction: row; /* 水平排列 */
+  align-items: center; /* 垂直居中 */
+  gap: 8px; /* 间距 */
+  flex-shrink: 0; /* 不允许压缩 */
+  animation: viewIn 0.22s ease-out; /* 入场动画 */
 }
 .rename-input {
-  flex: 1;
-  background: #33363b;
-  border: 1px solid #4a4e55;
-  color: #e8eaee;
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-family: inherit;
-  font-size: 13px;
-  outline: none;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  flex: 1; /* 输入框占满剩余宽度 */
+  background: #33363b; /* 深灰底 */
+  border: 1px solid #4a4e55; /* 描边 */
+  color: #e8eaee; /* 文字颜色 */
+  border-radius: 8px; /* 圆角 */
+  padding: 6px 10px; /* 内边距 */
+  font-family: inherit; /* 继承字体 */
+  font-size: 13px; /* 字号 */
+  outline: none; /* 去掉默认聚焦轮廓（自定义） */
+  transition: border-color 0.18s ease, box-shadow 0.18s ease; /* 描边/光晕过渡 */
 }
 .rename-input:focus {
-  border-color: #7fc9c4;
-  box-shadow: 0 0 0 3px rgba(127, 201, 196, 0.15);
+  border-color: #7fc9c4; /* 聚焦描边变青 */
+  box-shadow: 0 0 0 3px rgba(127, 201, 196, 0.15); /* 聚焦外发光 */
 }
 
 /* ---- 层编辑视图 ---- */
 .edit-header {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
+  display: flex; /* 弹性布局 */
+  flex-direction: row; /* 水平排列 */
+  align-items: center; /* 垂直居中 */
+  gap: 12px; /* 间距 */
+  flex-shrink: 0; /* 不允许压缩 */
 }
 .edit-title {
-  flex: 1;
-  font-size: 18px;
-  font-weight: 600;
-  color: #e8eaee;
+  flex: 1; /* 占满剩余宽度 */
+  font-size: 18px; /* 字号 */
+  font-weight: 600; /* 加粗 */
+  color: #e8eaee; /* 文字颜色 */
 }
 
 .edit-body {
-  display: flex;
-  flex-direction: row;
-  gap: 16px;
-  flex: 1;
-  min-height: 0;
+  display: flex; /* 弹性布局 */
+  flex-direction: row; /* 左右两栏 */
+  gap: 16px; /* 间距 */
+  flex: 1; /* 占满剩余高度 */
+  min-height: 0; /* 允许内部滚动 */
 }
 
 .edit-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 180px;
-  flex-shrink: 0;
-  overflow-y: auto;
+  display: flex; /* 弹性布局 */
+  flex-direction: column; /* 垂直排列按键 */
+  gap: 6px; /* 按键间距 */
+  width: 180px; /* 固定宽度 */
+  flex-shrink: 0; /* 不允许压缩 */
+  overflow-y: auto; /* 超出滚动 */
 }
 
 .pad-btn {
-  width: 100%;
-  background: linear-gradient(180deg, #383c43, #33363b);
-  border: 1px solid #3f434a;
-  border-radius: 8px;
-  padding: 6px 4px;
-  text-align: center;
-  font-size: 12px;
-  color: #e8eaee;
-  cursor: pointer;
-  user-select: none;
-  position: relative;
-  overflow: hidden;
-  animation: popIn 0.2s ease-out;
-  transition: background 0.16s ease, border-color 0.16s ease,
-              transform 0.12s ease, box-shadow 0.16s ease;
+  width: 100%; /* 占满整行 */
+  background: linear-gradient(180deg, #383c43, #33363b); /* 深灰渐变底 */
+  border: 1px solid #3f434a; /* 描边 */
+  border-radius: 8px; /* 圆角 */
+  padding: 6px 4px; /* 内边距 */
+  text-align: center; /* 文字居中 */
+  font-size: 12px; /* 字号 */
+  color: #e8eaee; /* 文字颜色 */
+  cursor: pointer; /* 手型光标 */
+  user-select: none; /* 禁止选中文本 */
+  position: relative; /* 相对定位（波纹基准） */
+  overflow: hidden; /* 裁剪波纹 */
+  animation: popIn 0.2s ease-out; /* 入场动画 */
+  transition: background 0.16s ease, border-color 0.16s ease, /* 背景/描边过渡 */
+              transform 0.12s ease, box-shadow 0.16s ease; /* 位移/投影过渡 */
 }
 .pad-btn:hover {
-  border-color: #7fc9c4;
-  transform: translateX(2px);
+  border-color: #7fc9c4; /* 悬停描边变青 */
+  transform: translateX(2px); /* 悬停右移 */
 }
-.pad-btn:active { transform: translateX(0) scale(0.97); }
+.pad-btn:active { transform: translateX(0) scale(0.97); } /* 按下微缩 */
 .pad-btn.sel {
-  background: linear-gradient(135deg, #7fc9c4, #5aa39f);
-  border-color: #7fc9c4;
-  color: #232529;
-  font-weight: 600;
-  box-shadow: 0 3px 10px rgba(127, 201, 196, 0.3);
+  background: linear-gradient(135deg, #7fc9c4, #5aa39f); /* 选中按键：青色渐变 */
+  border-color: #7fc9c4; /* 青色描边 */
+  color: #232529; /* 深色文字 */
+  font-weight: 600; /* 加粗 */
+  box-shadow: 0 3px 10px rgba(127, 201, 196, 0.3); /* 青色光晕 */
 }
 .pad-btn.pressed:not(.sel) {
-  background: linear-gradient(135deg, #f5b45f, #f0a34a);
-  border-color: #f0a34a;
-  color: #232529;
-  box-shadow: 0 3px 10px rgba(240, 163, 74, 0.3);
+  background: linear-gradient(135deg, #f5b45f, #f0a34a); /* 物理按下（非选中）：橙色渐变 */
+  border-color: #f0a34a; /* 橙色描边 */
+  color: #232529; /* 深色文字 */
+  box-shadow: 0 3px 10px rgba(240, 163, 74, 0.3); /* 橙色光晕 */
 }
 
 .edit-divider {
-  width: 1px;
-  align-self: stretch;
-  background: linear-gradient(180deg, transparent, #3f434a 30%, #3f434a 70%, transparent);
-  flex-shrink: 0;
+  width: 1px; /* 竖线宽度 */
+  align-self: stretch; /* 拉伸到容器高度 */
+  background: linear-gradient(180deg, transparent, #3f434a 30%, #3f434a 70%, transparent); /* 两端渐隐的竖分隔线 */
+  flex-shrink: 0; /* 不允许压缩 */
 }
 
 .edit-right {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  flex: 1;
-  min-width: 0;
-  overflow-y: auto;
+  display: flex; /* 弹性布局 */
+  flex-direction: column; /* 垂直排列 */
+  gap: 10px; /* 间距 */
+  flex: 1; /* 占满剩余宽度 */
+  min-width: 0; /* 允许收缩 */
+  overflow-y: auto; /* 超出滚动 */
 }
 
 .edit-current-row {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  display: flex; /* 弹性布局 */
+  flex-direction: row; /* 水平排列 */
+  align-items: center; /* 垂直居中 */
+  justify-content: space-between; /* 两端对齐 */
+  gap: 10px; /* 间距 */
 }
 #edit-current {
-  font-size: 14px;
-  color: #7fc9c4;
+  font-size: 14px; /* 当前映射字号 */
+  color: #7fc9c4; /* 青色强调 */
 }
 
 /* ---- 帮助视图 ---- */
-.help-view { overflow-y: auto; }
-.help-sections { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1; }
+.help-view { overflow-y: auto; } /* 帮助页面允许滚动 */
+.help-sections { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1; } /* 章节列表：垂直排列可滚动 */
 .help-section {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px 14px;
-  background: linear-gradient(180deg, rgba(63, 67, 74, 0.25), rgba(47, 49, 54, 0.6));
-  border: 1px solid #3a3e45;
-  border-radius: 12px;
-  transition: border-color 0.2s ease, transform 0.2s ease;
+  display: flex; /* 弹性布局 */
+  flex-direction: column; /* 垂直排列 */
+  gap: 4px; /* 标题与正文间距 */
+  padding: 12px 14px; /* 内边距 */
+  background: linear-gradient(180deg, rgba(63, 67, 74, 0.25), rgba(47, 49, 54, 0.6)); /* 玻璃卡片底 */
+  border: 1px solid #3a3e45; /* 描边 */
+  border-radius: 12px; /* 圆角 */
+  transition: border-color 0.2s ease, transform 0.2s ease; /* 描边/位移过渡 */
 }
-.help-section:hover { border-color: #4a4e55; transform: translateY(-1px); }
+.help-section:hover { border-color: #4a4e55; transform: translateY(-1px); } /* 悬停描边变亮并上浮 */
 .help-section-title {
-  font-size: 16px;
-  color: #7fc9c4;
-  font-weight: 600;
+  font-size: 16px; /* 章节标题字号 */
+  color: #7fc9c4; /* 青色 */
+  font-weight: 600; /* 加粗 */
 }
-.help-section-body { font-size: 14px; color: #e8eaee; line-height: 1.65; white-space: pre-line; }
+.help-section-body { font-size: 14px; color: #e8eaee; line-height: 1.65; white-space: pre-line; } /* 正文：行高、保留换行 */
 
 /* ---- 焦点可见性 ---- */
-.btn:focus-visible, .chip:focus-visible, .layer-btn:focus-visible,
+.btn:focus-visible, .chip:focus-visible, .layer-btn:focus-visible, /* 键盘导航时高亮这些可点击元素 */
 .pad-btn:focus-visible, .mini:focus-visible, .btn-toggle:focus-visible {
-  outline: 2px solid #7fc9c4;
-  outline-offset: 1px;
+  outline: 2px solid #7fc9c4; /* 青色聚焦轮廓 */
+  outline-offset: 1px; /* 轮廓外扩 1px */
 }
 
 /* =====================================================================
    悬浮窗（透明背景）
    ===================================================================== */
 body.overlay-body {
-  background: transparent;
-  overflow: hidden;
+  background: transparent; /* 悬浮窗 body 透明背景 */
+  overflow: hidden; /* 隐藏滚动 */
 }
 
 /* 悬浮窗页面：html 根元素也须透明，否则整个窗口是不透明深色矩形，
    导致透明窗口失效（悬浮窗"无法设置透明度"）。 */
 html.overlay-html {
-  background: transparent;
+  background: transparent; /* 悬浮窗 html 根元素透明 */
 }
 
 .overlay-card {
-  margin: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
-  background: rgba(43, 45, 49, 0.85);
-  border: 1px solid #7fc9c4;
-  border-radius: 12px;
-  height: calc(100% - 8px);
-  overflow: hidden;
-  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.35);
-  transition: border-color 0.3s ease, background 0.3s ease,
-              box-shadow 0.3s ease;
+  margin: 4px; /* 四周留白（配合透明背景形成悬浮感） */
+  display: flex; /* 弹性布局 */
+  flex-direction: column; /* 垂直排列 */
+  gap: 8px; /* 间距 */
+  padding: 10px 12px; /* 内边距 */
+  background: rgba(43, 45, 49, 0.85); /* 半透明深灰底（透明度由 JS 动态覆盖） */
+  border: 1px solid #7fc9c4; /* 青色描边 */
+  border-radius: 12px; /* 圆角 */
+  height: calc(100% - 8px); /* 高度扣除上下边距 */
+  overflow: hidden; /* 隐藏溢出 */
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.35); /* 投影 */
+  transition: border-color 0.3s ease, background 0.3s ease, /* 描边/背景过渡 */
+              box-shadow 0.3s ease; /* 投影过渡 */
 }
 .overlay-card.mouse-toggle {
-  border-color: #f0a34a;
-  box-shadow: 0 8px 26px rgba(240, 163, 74, 0.25);
+  border-color: #f0a34a; /* 锁存激活：边框变橙 */
+  box-shadow: 0 8px 26px rgba(240, 163, 74, 0.25); /* 橙色光晕 */
 }
 
 .overlay-title {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-  cursor: move;
-  user-select: none;
-  flex-shrink: 0;
+  display: flex; /* 弹性布局 */
+  flex-direction: row; /* 水平排列 */
+  align-items: center; /* 垂直居中 */
+  gap: 10px; /* 间距 */
+  cursor: move; /* 移动光标（配合拖动区域） */
+  user-select: none; /* 禁止选中文本 */
+  flex-shrink: 0; /* 不允许压缩 */
 }
-.ov-set { font-size: 15px; color: #7fc9c4; font-weight: 600; white-space: nowrap; }
-.ov-layer { font-size: 15px; color: #e8eaee; white-space: nowrap; }
+.ov-set { font-size: 15px; color: #7fc9c4; font-weight: 600; white-space: nowrap; } /* 操作集名：青色加粗 */
+.ov-layer { font-size: 15px; color: #e8eaee; white-space: nowrap; } /* 当前层名 */
 .ov-toggle {
-  margin-left: auto;
-  background: #33363b;
-  border: 1px solid #3f434a;
-  color: #e8eaee;
-  border-radius: 6px;
-  padding: 2px 8px;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 12px;
-  position: relative;
-  overflow: hidden;
-  transition: background 0.16s ease, border-color 0.16s ease,
-              transform 0.12s ease;
+  margin-left: auto; /* 靠右对齐 */
+  background: #33363b; /* 深灰底 */
+  border: 1px solid #3f434a; /* 描边 */
+  color: #e8eaee; /* 文字颜色 */
+  border-radius: 6px; /* 圆角 */
+  padding: 2px 8px; /* 内边距 */
+  cursor: pointer; /* 手型光标 */
+  font-family: inherit; /* 继承字体 */
+  font-size: 12px; /* 字号 */
+  position: relative; /* 相对定位（波纹基准） */
+  overflow: hidden; /* 裁剪波纹 */
+  transition: background 0.16s ease, border-color 0.16s ease, /* 背景/描边过渡 */
+              transform 0.12s ease; /* 位移过渡 */
 }
-.ov-toggle:hover { border-color: #7fc9c4; transform: translateY(-1px); }
-.ov-toggle:active { transform: translateY(0) scale(0.96); }
+.ov-toggle:hover { border-color: #7fc9c4; transform: translateY(-1px); } /* 悬停描边变青并上浮 */
+.ov-toggle:active { transform: translateY(0) scale(0.96); } /* 按下微缩 */
 
 .overlay-row {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  animation: popIn 0.2s ease-out;
+  display: flex; /* 弹性布局 */
+  flex-direction: row; /* 水平排列 */
+  align-items: center; /* 垂直居中 */
+  gap: 6px; /* 间距 */
+  font-size: 13px; /* 字号 */
+  animation: popIn 0.2s ease-out; /* 入场动画 */
 }
-.overlay-dim { color: #a3a8b2; font-size: 13px; }
-.overlay-faint { color: #6c727c; font-size: 13px; }
-.ov-acc { color: #7fc9c4; font-size: 13px; flex-shrink: 0; }
-.ov-acc.held { color: #f0a34a; }
-.ov-dim { color: #a3a8b2; font-size: 13px; }
-.ov-text { color: #e8eaee; font-size: 13px; }
+.overlay-dim { color: #a3a8b2; font-size: 13px; } /* 悬浮窗次要文字 */
+.overlay-faint { color: #6c727c; font-size: 13px; } /* 悬浮窗弱化文字 */
+.ov-acc { color: #7fc9c4; font-size: 13px; flex-shrink: 0; } /* 按键名：青色 */
+.ov-acc.held { color: #f0a34a; } /* 按键按住中：橙色 */
+.ov-dim { color: #a3a8b2; font-size: 13px; } /* 箭头分隔颜色 */
+.ov-text { color: #e8eaee; font-size: 13px; } /* 映射描述颜色 */
 
 .overlay-pressed {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 6px;
+  display: flex; /* 弹性布局 */
+  flex-direction: row; /* 水平排列 */
+  flex-wrap: wrap; /* 允许换行 */
+  gap: 6px; /* 间距 */
   /* 固定最小高度与 press-chip 一致，按下/无按下时高度不跳变，
      避免每次按键把下方映射列表往下挤 */
-  min-height: 24px;
-  align-items: center;
+  min-height: 24px; /* 最小高度 */
+  align-items: center; /* 垂直居中 */
 }
 
 .press-chip {
-  background: linear-gradient(135deg, #7fc9c4, #5aa39f);
-  color: #232529;
-  border-radius: 6px;
-  padding: 2px 8px;
-  font-size: 13px;
-  font-weight: 600;
-  animation: popIn 0.16s ease-out;
-  box-shadow: 0 2px 8px rgba(127, 201, 196, 0.35);
+  background: linear-gradient(135deg, #7fc9c4, #5aa39f); /* 按下的按键 chip：青色渐变 */
+  color: #232529; /* 深色文字 */
+  border-radius: 6px; /* 圆角 */
+  padding: 2px 8px; /* 内边距 */
+  font-size: 13px; /* 字号 */
+  font-weight: 600; /* 加粗 */
+  animation: popIn 0.16s ease-out; /* 入场动画 */
+  box-shadow: 0 2px 8px rgba(127, 201, 196, 0.35); /* 青色光晕 */
 }
 
 .overlay-warn {
-  background: linear-gradient(135deg, #f5b45f, #f0a34a);
-  color: #232529;
-  border-radius: 6px;
-  padding: 3px 8px;
-  font-size: 13px;
-  font-weight: 600;
-  animation: warnShake 0.4s ease;
+  background: linear-gradient(135deg, #f5b45f, #f0a34a); /* 警示条：橙色渐变 */
+  color: #232529; /* 深色文字 */
+  border-radius: 6px; /* 圆角 */
+  padding: 3px 8px; /* 内边距 */
+  font-size: 13px; /* 字号 */
+  font-weight: 600; /* 加粗 */
+  animation: warnShake 0.4s ease; /* 警示抖动动画 */
 }
 @keyframes warnShake {
-  0%, 100% { transform: translateX(0); }
-  25%      { transform: translateX(-4px); }
-  50%      { transform: translateX(3px); }
-  75%      { transform: translateX(-2px); }
+  0%, 100% { transform: translateX(0); } /* 起始/结束：原位 */
+  25%      { transform: translateX(-4px); } /* 左移 */
+  50%      { transform: translateX(3px); } /* 右移 */
+  75%      { transform: translateX(-2px); } /* 轻微左移 */
 }
 
 #ov-mappings {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  overflow-y: auto;
-  flex: 1;
-  animation: viewIn 0.24s ease-out;
+  display: flex; /* 弹性布局 */
+  flex-direction: column; /* 垂直排列 */
+  gap: 4px; /* 间距 */
+  overflow-y: auto; /* 超出滚动 */
+  flex: 1; /* 占满剩余高度 */
+  animation: viewIn 0.24s ease-out; /* 展开入场动画 */
 }
-#ov-map-list { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+#ov-map-list { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; } /* 映射列表：垂直排列可滚动 */

@@ -4,92 +4,97 @@
    展开时调用 setSize 加高窗口容纳映射列表。
    ===================================================================== */
 
+// 解构出 Tauri invoke（调用后端 Rust 命令）
 const { invoke } = window.__TAURI__.core;
+// 解构出 getCurrentWindow（调整悬浮窗大小）与 LogicalSize（逻辑像素尺寸）
 const { getCurrentWindow, LogicalSize } = window.__TAURI__.window;
 
 // ---------------------------------------------------------------------
 // 前端状态
 // ---------------------------------------------------------------------
-let expanded = false;
-let prevKey = null;
+let expanded = false; // 悬浮窗是否处于展开状态
+let prevKey = null; // 上一次渲染内容对比串，避免重复渲染
 
-const COLLAPSED_H = 220;
-const EXPANDED_H = 480;
-const W = 320;
+const COLLAPSED_H = 220; // 收起状态窗口高度
+const EXPANDED_H = 480; // 展开状态窗口高度
+const W = 320; // 悬浮窗固定宽度
 
 // ---------------------------------------------------------------------
 // 工具
 // ---------------------------------------------------------------------
+// esc：HTML 转义，防止特殊字符破坏页面结构
 function esc(s) {
+  // 依次替换 & < > " 为对应 HTML 实体
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// $：按 id 获取 DOM 元素的简写
 function $(id) { return document.getElementById(id); }
 
 // ---------------------------------------------------------------------
 // 轮询
 // ---------------------------------------------------------------------
-let ticking = false;
+let ticking = false; // 轮询重入锁，防止上一次 invoke 未返回时又发起一次
 async function tick() {
-  if (ticking) return;
-  ticking = true;
+  if (ticking) return; // 上一次轮询未结束则跳过
+  ticking = true; // 标记轮询进行中
   try {
-    const snap = await invoke('get_overlay_snapshot');
-    const key = JSON.stringify(snap) + '|' + expanded;
-    if (key !== prevKey) {
-      prevKey = key;
-      render(snap);
+    const snap = await invoke('get_overlay_snapshot'); // 调用后端命令获取悬浮窗快照
+    const key = JSON.stringify(snap) + '|' + expanded; // 组合对比串（含展开状态）
+    if (key !== prevKey) { // 有变化才渲染
+      prevKey = key; // 记录本次内容
+      render(snap); // 渲染悬浮窗
     }
   } catch (e) {
-    console.error('overlay tick:', e);
+    console.error('overlay tick:', e); // 出错打印日志（不中断定时器）
   }
-  ticking = false;
+  ticking = false; // 轮询结束，解除锁
 }
-setInterval(tick, 50);
+setInterval(tick, 50); // 每 50ms 轮询一次
 
 // ---------------------------------------------------------------------
 // 渲染
 // ---------------------------------------------------------------------
 function render(snap) {
   // 标题
-  $('ov-set').textContent = '操作集: ' + esc(snap.set_name);
-  $('ov-layer').textContent = '当前层: ' + esc(snap.layer_name);
-  $('ov-toggle').textContent = expanded ? '收起' : '展开';
+  $('ov-set').textContent = '操作集: ' + esc(snap.set_name); // 当前操作集名称
+  $('ov-layer').textContent = '当前层: ' + esc(snap.layer_name); // 当前层名称
+  $('ov-toggle').textContent = expanded ? '收起' : '展开'; // 展开/收起按钮文案
 
   // 连接状态
-  $('ov-dot').className = 'dot ' + (snap.connected ? 'ok' : 'off');
-  $('ov-conn').textContent = snap.connected ? '手柄已连接' : '手柄未连接';
+  $('ov-dot').className = 'dot ' + (snap.connected ? 'ok' : 'off'); // 状态圆点样式
+  $('ov-conn').textContent = snap.connected ? '手柄已连接' : '手柄未连接'; // 连接状态文字
 
   // 按下按键
-  if (snap.pressed.length === 0) {
-    $('ov-pressed').innerHTML = '<span class="overlay-faint">无按键按下</span>';
-  } else {
-    $('ov-pressed').innerHTML = snap.pressed.map((p) =>
+  if (snap.pressed.length === 0) { // 无按键按下时
+    $('ov-pressed').innerHTML = '<span class="overlay-faint">无按键按下</span>'; // 显示提示
+  } else { // 有按键按下时
+    $('ov-pressed').innerHTML = snap.pressed.map((p) => // 为每个按下的按键生成 chip
       '<span class="press-chip">' + esc(p) + '</span>'
     ).join('');
   }
 
   // L3 锁存警示（边框变橙 + 警示条）；类切换触发边框/光晕过渡动画
-  const mouseToggle = !!snap.mouse_toggle;
-  $('ov-warn').style.display = mouseToggle ? 'block' : 'none';
-  $('overlay-card').classList.toggle('mouse-toggle', mouseToggle);
+  const mouseToggle = !!snap.mouse_toggle; // 是否有鼠标长按锁存
+  $('ov-warn').style.display = mouseToggle ? 'block' : 'none'; // 显示/隐藏警示条
+  $('overlay-card').classList.toggle('mouse-toggle', mouseToggle); // 切换卡片橙色边框样式
 
   // 卡片背景透明度跟随设置（透明度越低越透明，配合透明窗口）
-  const op = typeof snap.opacity === 'number' ? snap.opacity : 0.85;
-  $('overlay-card').style.background = 'rgba(43, 45, 49, ' + op + ')';
+  const op = typeof snap.opacity === 'number' ? snap.opacity : 0.85; // 取快照中的透明度，缺省 0.85
+  $('overlay-card').style.background = 'rgba(43, 45, 49, ' + op + ')'; // 应用半透明背景
 
   // 展开：映射列表
-  $('ov-mappings').style.display = expanded ? 'flex' : 'none';
-  if (expanded) {
-    $('ov-map-title').textContent = '当前层映射: ' + esc(snap.layer_name);
-    if (snap.mappings.length === 0) {
-      $('ov-map-list').innerHTML = '<span class="overlay-faint">（无映射）</span>';
-    } else {
-      $('ov-map-list').innerHTML = snap.mappings.map((m) =>
-        '<div class="overlay-row">' +
-        '<span class="ov-acc' + (m.held ? ' held' : '') + '">' + esc(m.button) + '</span>' +
-        '<span class="ov-dim">→</span>' +
-        '<span class="ov-text">' + esc(m.desc) + '</span>' +
+  $('ov-mappings').style.display = expanded ? 'flex' : 'none'; // 展开时显示映射列表
+  if (expanded) { // 仅展开时渲染映射列表
+    $('ov-map-title').textContent = '当前层映射: ' + esc(snap.layer_name); // 映射列表标题
+    if (snap.mappings.length === 0) { // 无映射时
+      $('ov-map-list').innerHTML = '<span class="overlay-faint">（无映射）</span>'; // 显示空提示
+    } else { // 有映射时
+      $('ov-map-list').innerHTML = snap.mappings.map((m) => // 遍历每条映射生成行
+        '<div class="overlay-row">' + // 一行容器
+        '<span class="ov-acc' + (m.held ? ' held' : '') + '">' + esc(m.button) + '</span>' + // 手柄按键名（按住中变橙色）
+        '<span class="ov-dim">→</span>' + // 箭头分隔
+        '<span class="ov-text">' + esc(m.desc) + '</span>' + // 映射动作描述
         '</div>'
       ).join('');
     }
@@ -100,27 +105,27 @@ function render(snap) {
 // 展开 / 收起（同时调整窗口大小）
 // ---------------------------------------------------------------------
 async function setExpanded(v) {
-  expanded = v;
-  const win = getCurrentWindow();
-  await win.setSize(new LogicalSize(W, expanded ? EXPANDED_H : COLLAPSED_H));
-  prevKey = null;
+  expanded = v; // 更新展开状态
+  const win = getCurrentWindow(); // 获取本窗口
+  await win.setSize(new LogicalSize(W, expanded ? EXPANDED_H : COLLAPSED_H)); // 按展开状态调整窗口高度
+  prevKey = null; // 强制下一轮重新渲染
   try {
-    const snap = await invoke('get_overlay_snapshot');
-    render(snap);
+    const snap = await invoke('get_overlay_snapshot'); // 重新获取快照
+    render(snap); // 立即重绘（无需等下一轮轮询）
   } catch (e) {
-    console.error('overlay render:', e);
+    console.error('overlay render:', e); // 出错打印日志
   }
 }
 
 // ---------------------------------------------------------------------
 // 事件绑定
 // ---------------------------------------------------------------------
-$('ov-toggle').addEventListener('click', (e) => {
-  e.stopPropagation();
-  setExpanded(!expanded);
+$('ov-toggle').addEventListener('click', (e) => { // 展开/收起按钮
+  e.stopPropagation(); // 阻止事件冒泡到标题，避免重复触发
+  setExpanded(!expanded); // 切换展开状态
 });
 // 点击标题区域切换展开/收起（不影响拖动）
-$('ov-title').addEventListener('click', (e) => {
-  if (e.target === $('ov-toggle')) return;
-  setExpanded(!expanded);
+$('ov-title').addEventListener('click', (e) => { // 标题行点击
+  if (e.target === $('ov-toggle')) return; // 点的是展开按钮则跳过（避免重复）
+  setExpanded(!expanded); // 切换展开状态
 });
