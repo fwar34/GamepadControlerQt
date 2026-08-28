@@ -233,7 +233,6 @@ body::before {
   user-select: none; /* 禁止选中文本 */
   position: relative; /* 相对定位（波纹基准） */
   overflow: hidden; /* 裁剪波纹 */
-  animation: popIn 0.22s ease-out; /* 入场弹入动画 */
   transition: background 0.16s ease, border-color 0.16s ease, /* 背景/描边过渡 */
               transform 0.12s ease, box-shadow 0.16s ease; /* 位移/投影过渡 */
 }
@@ -262,8 +261,9 @@ body::before {
   flex-direction: column; /* 垂直排列 */
   gap: 6px; /* 层按钮间距 */
   flex: 1; /* 占满剩余高度 */
-  overflow-y: auto; /* 超出滚动 */
-  padding-top: 4px; /* 顶部留白 */
+  overflow-y: auto; /* 超出纵向滚动 */
+  overflow-x: hidden; /* 禁止横向滚动条（悬停右移留白 + 隐藏溢出，避免出现横条） */
+  padding: 4px 8px 4px 0; /* 顶部留白 + 右侧留白（给悬停右移/光晕留空间，避免右侧截断） */
 }
 
 .layer-btn {
@@ -277,7 +277,6 @@ body::before {
   user-select: none; /* 禁止选中文本 */
   position: relative; /* 相对定位（波纹基准） */
   overflow: hidden; /* 裁剪波纹 */
-  animation: popIn 0.24s ease-out; /* 入场动画 */
   transition: background 0.16s ease, border-color 0.16s ease, /* 背景/描边过渡 */
               transform 0.12s ease, box-shadow 0.16s ease; /* 位移/投影过渡 */
 }
@@ -453,6 +452,7 @@ body::before {
   width: 180px; /* 固定宽度 */
   flex-shrink: 0; /* 不允许压缩 */
   overflow-y: auto; /* 超出滚动 */
+  padding-right: 8px; /* 右侧留白：避免悬停右移产生横向溢出导致滚动条闪动 */
 }
 
 .pad-btn {
@@ -468,7 +468,6 @@ body::before {
   user-select: none; /* 禁止选中文本 */
   position: relative; /* 相对定位（波纹基准） */
   overflow: hidden; /* 裁剪波纹 */
-  animation: popIn 0.2s ease-out; /* 入场动画 */
   transition: background 0.16s ease, border-color 0.16s ease, /* 背景/描边过渡 */
               transform 0.12s ease, box-shadow 0.16s ease; /* 位移/投影过渡 */
 }
