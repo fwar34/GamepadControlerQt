@@ -151,8 +151,9 @@ function renderRenameRow() {
 function openEditWindow(id) {
   WebviewWindow.getByLabel('edit-win').then((existing) => { // getByLabel 是异步方法，返回 Promise
     if (existing) { // 编辑窗口已存在 → 复用
-      existing.setFocus(); // 将已存在的编辑窗口置顶聚焦
-      emit('edit-layer', { layerId: id }); // 通过事件把新的层 id 推送给编辑窗口
+      emit('edit-layer', { layerId: id }); // 先通过事件把新的层 id 推送给编辑窗口（隐藏时也会立即处理）
+      existing.show(); // 显示窗口（预热创建的窗口此前处于隐藏状态）
+      existing.setFocus(); // 将编辑窗口置顶聚焦
     } else { // 编辑窗口不存在 → 新建
       const win = new WebviewWindow('edit-win', { // 创建固定标签为 edit-win 的独立窗口
         url: 'edit.html#' + encodeURIComponent(id), // URL 带 hash 传入层 id
@@ -174,6 +175,7 @@ function openEditWindow(id) {
 function openHelpWindow() {
   WebviewWindow.getByLabel('help-win').then((existing) => { // 异步查找 help-win 窗口
     if (existing) { // 已存在 → 复用
+      existing.show(); // 显示窗口（预热创建的窗口此前处于隐藏状态）
       existing.setFocus(); // 置顶聚焦
       return; // 直接返回，不新建
     }
@@ -189,6 +191,41 @@ function openHelpWindow() {
       visible: false,     // 先隐藏，页面渲染完成后由 help.js 调用 show() 再显示，杜绝白屏
     });
     win.once('tauri://error', (e) => console.error('使用说明窗口创建失败:', e)); // 监听创建失败事件并打印
+  });
+}
+
+// prewarmWindows：应用启动后预创建并加载编辑层 / 使用说明窗口（保持隐藏）。
+// 用户点击时 WebView2 已加载完毕，可瞬间显示，避免首次打开等待窗口加载。
+function prewarmWindows() {
+  WebviewWindow.getByLabel('edit-win').then((existing) => { // 异步检查编辑窗口是否已存在
+    if (!existing) { // 不存在则预创建（隐藏加载）
+      new WebviewWindow('edit-win', { // 参数与 openEditWindow 保持一致
+        url: 'edit.html?prewarm=1#Common', // 带 prewarm 标记 + 初始层 id（edit.js 检测 prewarm 不自动显示）
+        title: '编辑层',
+        width: 780,
+        height: 620,
+        minWidth: 680,
+        minHeight: 520,
+        center: true,
+        backgroundColor: '#26282c',
+        visible: false, // 保持隐藏，用户点击时由 openEditWindow 调 show() 显示
+      });
+    }
+  });
+  WebviewWindow.getByLabel('help-win').then((existing) => { // 异步检查帮助窗口是否已存在
+    if (!existing) { // 不存在则预创建（隐藏加载）
+      new WebviewWindow('help-win', { // 参数与 openHelpWindow 保持一致
+        url: 'help.html?prewarm=1', // 带 prewarm 标记（help.js 检测 prewarm 不自动显示）
+        title: '使用说明',
+        width: 660,
+        height: 740,
+        minWidth: 500,
+        minHeight: 420,
+        center: true,
+        backgroundColor: '#26282c',
+        visible: false, // 保持隐藏，用户点击时由 openHelpWindow 调 show() 显示
+      });
+    }
   });
 }
 
@@ -301,6 +338,7 @@ document.addEventListener('pointerdown', (e) => { // 监听任意指针按下（
     console.error('首帧渲染失败:', e); // 渲染出错打印日志
   }
   getCurrentWindow().show(); // 内容就绪后再显示窗口，杜绝白屏
+  prewarmWindows(); // 预热编辑层 / 使用说明窗口（隐藏加载，点击时瞬间显示）
 })();
 // 兜底：若首帧渲染异常导致未显示，1.5 秒后强制显示，避免窗口"打不开"
 setTimeout(() => getCurrentWindow().show(), 1500);

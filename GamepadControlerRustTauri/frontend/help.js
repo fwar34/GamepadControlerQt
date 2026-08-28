@@ -62,8 +62,11 @@ $('help-close').addEventListener('click', () => getCurrentWindow().close()); // 
 renderHelp(); // 页面加载后渲染使用说明内容
 
 // ---------------------------------------------------------------------
-// 渲染完成后显示窗口（窗口以 visible:false 创建，避免打开瞬间白屏闪动）
+// 窗口显示策略：
+//   - 带 ?prewarm=1（应用启动时预热创建）：保持隐藏，用户点击后由 main.js 调用 show() 显示
+//   - 不带 prewarm（用户点击后才新建）：渲染完成后自动显示，避免打开瞬间白屏闪动
 // ---------------------------------------------------------------------
-requestAnimationFrame(() => getCurrentWindow().show()); // 下一帧绘制后显示窗口，杜绝白屏
-// 兜底：确保窗口最终可见
-setTimeout(() => getCurrentWindow().show(), 1500);
+if (!new URLSearchParams(location.search).has('prewarm')) { // 非预热窗口才自动显示
+  requestAnimationFrame(() => getCurrentWindow().show()); // 下一帧绘制后显示窗口，杜绝白屏
+  setTimeout(() => getCurrentWindow().show(), 1500); // 兜底：确保窗口最终可见
+}

@@ -11,7 +11,7 @@
 //          └─ 前端(WebView) ── invoke 命令 ──> 后端(commands.rs)
 // =====================================================================
 
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![windows_subsystem = "windows"]
 
 mod commands;
 mod core;
@@ -20,6 +20,23 @@ mod ui;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
+use windows::Win32::Foundation::{GetLastError, ERROR_ALREADY_EXISTS};
+use windows::Win32::System::Threading::CreateMutexW;
+use windows::Win32::UI::WindowsAndMessaging::{FindWindowW, SetForegroundWindow, ShowWindow, SW_RESTORE};
+
+/// 已有实例运行时聚焦其主窗口（按主窗口标题查找并恢复/置顶）
+fn focus_existing_main_window() {
+    unsafe {
+        // 按窗口标题查找已有实例的主窗口（FindWindowW 返回 Result，失败即未找到）
+        let Ok(hwnd) = FindWindowW(None, windows::core::w!("Gamepad 键鼠映射")) else {
+            return; // 未找到主窗口则不做聚焦
+        };
+        if !hwnd.0.is_null() {
+            ShowWindow(hwnd, SW_RESTORE); // 最小化则恢复显示
+            let _ = SetForegroundWindow(hwnd); // 置顶聚焦
+        }
+    }
+}
 
 /// 全局共享状态：跨线程共享的核心 + 悬浮窗显隐标志 + 悬浮窗透明度
 pub struct AppState {
@@ -30,6 +47,24 @@ pub struct AppState {
 }
 
 fn main() {
+    // ---- 0. 单进程限制：命名互斥体检测是否已有实例在运行 ----
+    let _single_instance = {
+        // 创建命名互斥体；若已存在（ERROR_ALREADY_EXISTS）说明已有实例在运行。
+        // 名称位于 Global 命名空间，多个进程共享（w! 宏只能接收字符串字面量）
+        let handle = unsafe {
+            CreateMutexW(None, true, windows::core::w!("Global\\GamepadControlerTauriSingleInstance"))
+        };
+        let already_running = unsafe { GetLastError() } == ERROR_ALREADY_EXISTS;
+        if already_running {
+            // 已有实例 → 聚焦其主窗口后直接退出本实例
+            focus_existing_main_window();
+            return;
+        }
+        // 首次实例：持有互斥体句柄直到进程退出（否则句柄释放后互斥体会被销毁）
+        handle
+    };
+    let _ = _single_instance;
+
     // ---- 1. 构建共享状态并加载配置 ----
     let shared = Arc::new(ui::shared::AppShared::new());
     {

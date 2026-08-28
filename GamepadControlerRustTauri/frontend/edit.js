@@ -228,15 +228,19 @@ document.addEventListener('pointerdown', (e) => { // 监听指针按下（事件
 });
 
 // ---------------------------------------------------------------------
-// 首帧渲染完成后显示窗口（窗口以 visible:false 创建，避免打开瞬间白屏闪动）
+// 窗口显示策略：
+//   - 带 ?prewarm=1（应用启动时预热创建）：保持隐藏，用户点击后由 main.js 调用 show() 显示
+//   - 不带 prewarm（用户点击后才新建）：首帧渲染完成后自动显示，避免打开瞬间白屏闪动
 // ---------------------------------------------------------------------
-(async () => {
-  try {
-    await tick(); // 立即先执行一轮渲染
-  } catch (e) {
-    console.error('首帧渲染失败:', e); // 渲染出错打印日志
-  }
-  getCurrentWindow().show(); // 内容就绪后再显示窗口，杜绝白屏
-})();
-// 兜底：若首帧渲染异常导致未显示，1.5 秒后强制显示，避免窗口"打不开"
-setTimeout(() => getCurrentWindow().show(), 1500);
+if (!new URLSearchParams(location.search).has('prewarm')) { // 非预热窗口才自动显示
+  (async () => {
+    try {
+      await tick(); // 立即先执行一轮渲染
+    } catch (e) {
+      console.error('首帧渲染失败:', e); // 渲染出错打印日志
+    }
+    getCurrentWindow().show(); // 内容就绪后再显示窗口，杜绝白屏
+  })();
+  // 兜底：若首帧渲染异常导致未显示，1.5 秒后强制显示，避免窗口"打不开"
+  setTimeout(() => getCurrentWindow().show(), 1500);
+}
