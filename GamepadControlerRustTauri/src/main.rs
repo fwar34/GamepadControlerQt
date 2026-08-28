@@ -5,6 +5,7 @@
 //   1. 构建共享状态（AppCore + LookRunner + XInputGamepadSource）
 //   2. 从 exe 同目录加载配置文件（无则生成默认）
 //   3. 启动 Tauri：主窗口（自动创建）+ 悬浮窗（setup 中创建，默认隐藏）
+// 退出：RunEvent::Exit 统一钩子——停止映射释放注入 + 自动保存配置
 //
 // 数据流：XInputGamepadSource → AppCore(SteamInput→Mapper) → SendInput
 //          └─ 前端(WebView) ── invoke 命令 ──> 后端(commands.rs)
@@ -85,6 +86,18 @@ fn main() {
             .build()?;
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|app_handle, event| {
+            // 应用退出前：停止映射释放全部注入（防止卡键）+ 自动保存配置文件
+            if let tauri::RunEvent::Exit = event {
+                let state = app_handle.state::<AppState>();
+                state.shared.stop_mapping(); // 释放所有按键注入，防止卡键
+                let profile = {
+                    let core = state.shared.core.lock().unwrap();
+                    core.steam.profile.clone() // 取当前配置快照
+                };
+                core::config_manager::save(&profile); // 自动保存到配置文件
+            }
+        });
 }
