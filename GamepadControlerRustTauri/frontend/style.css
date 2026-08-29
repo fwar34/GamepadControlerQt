@@ -461,7 +461,10 @@ body::before {
   border: 1px solid #3f434a; /* 描边 */
   border-radius: 8px; /* 圆角 */
   padding: 6px 4px; /* 内边距 */
-  text-align: center; /* 文字居中 */
+  display: flex; /* 弹性布局（保证文字上下居中） */
+  align-items: center; /* 垂直居中 */
+  justify-content: center; /* 水平居中 */
+  text-align: center; /* 文字居中（多行文本回退） */
   font-size: 12px; /* 字号 */
   color: #e8eaee; /* 文字颜色 */
   cursor: pointer; /* 手型光标 */
