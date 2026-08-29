@@ -4,30 +4,35 @@
 // 深色主题（灰底 + 青绿强调），与主窗口风格一致。
 // ============================================================
 
+// 【C++ 语法】#include 预处理指令：将本类声明的头文件内容包含进本文件
 #include "HelpDialog.h"
+// 【C++ 语法】包含本模块自定义的深色标题栏工具函数头文件
 #include "DarkTitleBar.h"
 
+// 【Qt】以下头文件来自 Qt Widgets 模块：按钮盒、标签、富文本浏览器、垂直布局
 #include <QDialogButtonBox>
 #include <QLabel>
 #include <QTextBrowser>
 #include <QVBoxLayout>
 
+// 【C++ 语法】构造函数定义：HelpDialog::HelpDialog 表示定义 HelpDialog 类的成员函数
 HelpDialog::HelpDialog(QWidget* parent)
-    : QDialog(parent) {
-    setWindowTitle(tr("使用说明"));
-    setMinimumSize(560, 520);
+    : QDialog(parent) {   // 【C++ 语法】冒号后为初始化列表：进入函数体前先调用基类 QDialog 的构造函数，并把父窗口指针 parent 传给它
+    setWindowTitle(tr("使用说明"));   // 【Qt】设置窗口标题；tr() 是 Qt 的翻译函数，便于后续国际化
+    setMinimumSize(560, 520);   // 【Qt】设置窗口最小尺寸：宽 560、高 520 像素
 
-    auto* root = new QVBoxLayout(this);
-    root->setContentsMargins(16, 16, 16, 16);
-    root->setSpacing(12);
+    auto* root = new QVBoxLayout(this);   // 【C++ 语法】auto 自动推导类型为 QVBoxLayout*；new 在堆上创建对象；【Qt】创建垂直布局管理器，parent 传 this 使其随窗口一起析构
+    root->setContentsMargins(16, 16, 16, 16);   // 【Qt】设置布局的内边距（依次为左、上、右、下），单位像素
+    root->setSpacing(12);   // 【Qt】设置布局内相邻子控件之间的间距为 12 像素
 
-    auto* title = new QLabel(tr("使用说明"), this);
-    title->setStyleSheet(QStringLiteral(
-        "font-size: 17px; font-weight: bold; font-family: \"Microsoft YaHei\"; color: #7fc9c4;"));
-    root->addWidget(title);
+    auto* title = new QLabel(tr("使用说明"), this);   // 【Qt】创建 QLabel 标签控件，文本为“使用说明”，父对象为 this
+    title->setStyleSheet(QStringLiteral(   // 【Qt】为标签设置样式表 QSS；QStringLiteral 在编译期构造字符串，避免运行时重复分配
+        "font-size: 17px; font-weight: bold; font-family: \"Microsoft YaHei\"; color: #7fc9c4;"));   // QSS 内容：17 像素加粗微软雅黑字体、青绿色（#7fc9c4）文字
+    root->addWidget(title);   // 【Qt】把标题标签加入垂直布局
 
-    auto* browser = new QTextBrowser(this);
-    browser->setOpenExternalLinks(false);
+    auto* browser = new QTextBrowser(this);   // 【Qt】创建 QTextBrowser 富文本浏览器控件，用于展示 HTML 帮助内容
+    browser->setOpenExternalLinks(false);   // 【Qt】禁止点击外部链接时调用系统浏览器打开（本帮助没有外链，避免误触发）
+    // 【Qt】把帮助正文 HTML 写入浏览器控件；R"(...)" 是 C++11 原始字符串字面量，内部内容不做任何转义
     browser->setHtml(QStringLiteral(R"(
 <body style="font-family:'Microsoft YaHei'; font-size:13px; color:#d5d9df;">
   <h3 style="color:#7fc9c4; margin-bottom:4px;">一、快速开始</h3>
@@ -67,14 +72,15 @@ HelpDialog::HelpDialog(QWidget* parent)
     <li>键盘映射需要目标程序窗口处于前台才能收到输入。</li>
   </ul>
 </body>
-)"));
-    root->addWidget(browser, 1);
+)"));   // 【C++ 语法】结束原始字符串字面量，并结束 setHtml(...) 语句
+    root->addWidget(browser, 1);   // 【Qt】把浏览器加入布局，第二个参数 1 是拉伸因子：多出的垂直空间优先分配给浏览器
 
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
-    connect(buttons, &QDialogButtonBox::rejected, this, &HelpDialog::reject);
-    root->addWidget(buttons);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);   // 【Qt】创建标准按钮盒，只含“关闭”（Close）按钮；父对象为 this
+    connect(buttons, &QDialogButtonBox::rejected, this, &HelpDialog::reject);   // 【Qt】信号槽连接：按钮盒发出 rejected 信号（点击关闭）时，调用本对话框的 reject() 槽关闭窗口
+    root->addWidget(buttons);   // 【Qt】把按钮盒加入垂直布局
 
     // ---- 深色主题（与主窗口一致的灰底 + 青绿强调） ----
+    // 【Qt】setStyleSheet 为整个对话框设置 QSS 样式表（内容见下方，字符串内部不插入注释）
     setStyleSheet(R"(
         QDialog {
             background-color: #2b2d31;
@@ -106,8 +112,8 @@ HelpDialog::HelpDialog(QWidget* parent)
         QDialogButtonBox {
             background-color: transparent;
         }
-    )");
+    )");   // 【C++ 语法】结束原始字符串字面量，并结束 setStyleSheet 语句
 
     // ---- 标题栏深色化，与主窗口一致 ----
-    enableDarkTitleBar(this);
+    enableDarkTitleBar(this);   // 【Windows API】调用工具函数：通过 DWM 把本对话框的标题栏设置为深色
 }
