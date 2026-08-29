@@ -6,4 +6,5 @@
 // src/commands.rs 的 Tauri 命令与后端交互。
 // =====================================================================
 
+// 【Rust 语法】pub mod：声明公开子模块 shared，对应 src/ui/shared.rs
 pub mod shared;
