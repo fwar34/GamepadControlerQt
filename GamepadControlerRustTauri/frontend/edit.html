@@ -1,0 +1,43 @@
+<!DOCTYPE html> <!-- 声明文档类型为 HTML5 -->
+<html lang="zh-CN"> <!-- 页面语言为简体中文 -->
+<head> <!-- 头部：页面元信息与资源引用 -->
+  <meta charset="UTF-8"> <!-- 字符编码 UTF-8（源码含中文必须） -->
+  <title>编辑层</title> <!-- 浏览器标签页标题 -->
+  <link rel="stylesheet" href="style.css"> <!-- 引入全局样式表（与主窗口同主题） -->
+</head>
+<body>
+  <!-- 独立「编辑层」窗口：由主窗口 WebviewWindow("edit-win") 打开。
+       层 id 通过 URL hash 传入（edit.html#<layerId>） -->
+  <div class="root help-view"> <!-- 根容器：复用 root 布局，允许滚动 -->
+    <div class="edit-header"> <!-- 编辑窗口头部 -->
+      <div class="edit-title" id="edit-title">编辑层: --</div> <!-- 当前编辑的层名（edit.js 动态刷新） -->
+      <button class="btn" id="edit-close">关闭</button> <!-- 关闭本窗口按钮 -->
+    </div>
+
+    <div class="edit-body"> <!-- 编辑区两栏布局 -->
+      <!-- 左栏：手柄按键网格 -->
+      <div class="edit-grid" id="edit-grid"></div> <!-- 手柄按键按钮网格（edit.js 动态渲染，点击选中按键） -->
+
+      <div class="edit-divider"></div> <!-- 左右栏之间的竖向分隔线 -->
+
+      <!-- 右栏：动作配置 -->
+      <div class="edit-right">
+        <div class="edit-current-row"> <!-- 当前按键与映射显示行 -->
+          <span id="edit-current">当前: --</span> <!-- 当前选中按键及其映射描述（动态刷新） -->
+          <button class="btn" id="edit-clear">清除映射</button> <!-- 清除当前按键映射 -->
+        </div>
+        <div class="dim">动作类型</div> <!-- 动作类型区标题 -->
+        <div id="edit-kinds" class="chips-row"></div> <!-- 动作类型 chips（动态渲染：键盘/鼠标/滚轮/切层等） -->
+
+        <div class="dim">目标</div> <!-- 目标区标题 -->
+        <div id="edit-target"></div> <!-- 目标选择区（按动作类型动态渲染：按键/鼠标键/目标层） -->
+
+        <div class="dim" id="edit-subs-label">子命令</div> <!-- 子命令区标题（含已选数量） -->
+        <div id="edit-subs" class="chips-row"></div> <!-- 子命令 chips（动态渲染，最多 3 个） -->
+      </div>
+    </div>
+  </div>
+
+  <script src="edit.js"></script> <!-- 编辑窗口前端逻辑脚本 -->
+</body>
+</html>

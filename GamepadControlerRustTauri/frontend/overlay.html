@@ -1,47 +1,47 @@
-<!DOCTYPE html>
-<html lang="zh-CN" class="overlay-html">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>手柄悬浮窗</title>
-  <link rel="stylesheet" href="style.css" />
+<!DOCTYPE html> <!-- 声明文档类型为 HTML5 -->
+<html lang="zh-CN" class="overlay-html"> <!-- 页面语言为简体中文；overlay-html 类使 html 根元素透明（透明窗口前提） -->
+<head> <!-- 头部：页面元信息与资源引用 -->
+  <meta charset="UTF-8" /> <!-- 字符编码 UTF-8（源码含中文必须） -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" /> <!-- 视口适配（移动端友好） -->
+  <title>手柄悬浮窗</title> <!-- 浏览器标签页标题 -->
+  <link rel="stylesheet" href="style.css" /> <!-- 引入全局样式表 -->
 </head>
-<body class="overlay-body">
-  <div class="overlay-card" id="overlay-card">
+<body class="overlay-body"> <!-- overlay-body 类使 body 透明（配合透明窗口） -->
+  <div class="overlay-card" id="overlay-card"> <!-- 悬浮窗卡片容器：半透明玻璃卡片 -->
     <!-- 标题行：点击或拖动；data-tauri-drag-region 允许拖动窗口 -->
-    <div class="overlay-title" id="ov-title" data-tauri-drag-region>
-      <span class="ov-set" id="ov-set">操作集: --</span>
-      <span class="ov-layer" id="ov-layer">当前层: --</span>
-      <button class="ov-toggle" id="ov-toggle">展开</button>
+    <div class="overlay-title" id="ov-title" data-tauri-drag-region> <!-- 标题行（可拖动窗口，点击切换展开） -->
+      <span class="ov-set" id="ov-set">操作集: --</span> <!-- 当前操作集名称（overlay.js 动态刷新） -->
+      <span class="ov-layer" id="ov-layer">当前层: --</span> <!-- 当前层名称（overlay.js 动态刷新） -->
+      <button class="ov-toggle" id="ov-toggle">展开</button> <!-- 展开/收起按钮 -->
     </div>
 
     <!-- 连接状态 -->
-    <div class="overlay-row">
-      <span class="dot" id="ov-dot"></span>
-      <span class="overlay-dim" id="ov-conn">手柄未连接</span>
+    <div class="overlay-row"> <!-- 状态行 -->
+      <span class="dot" id="ov-dot"></span> <!-- 连接状态圆点（绿=已连接/灰=未连接） -->
+      <span class="overlay-dim" id="ov-conn">手柄未连接</span> <!-- 连接状态文字 -->
     </div>
 
     <!-- 按下按键 -->
-    <div class="overlay-pressed" id="ov-pressed"></div>
+    <div class="overlay-pressed" id="ov-pressed"></div> <!-- 当前按下的手柄按键 chips（动态渲染） -->
 
     <!-- L3 锁存警示 -->
-    <div id="ov-warn" style="display:none;">
-      <div class="overlay-warn">⚠ 鼠标长按锁存中，再按一次解除</div>
+    <div id="ov-warn" style="display:none;"> <!-- 锁存警示容器（默认隐藏） -->
+      <div class="overlay-warn">⚠ 鼠标长按锁存中，再按一次解除</div> <!-- 警示条文案 -->
     </div>
 
     <!-- 展开：当前层映射列表 -->
-    <div id="ov-mappings" style="display:none;">
-      <div class="overlay-dim" id="ov-map-title">当前层映射:</div>
-      <div id="ov-map-list"></div>
-      <div class="overlay-row">
+    <div id="ov-mappings" style="display:none;"> <!-- 展开后的映射列表容器（默认隐藏） -->
+      <div class="overlay-dim" id="ov-map-title">当前层映射:</div> <!-- 映射列表标题 -->
+      <div id="ov-map-list"></div> <!-- 当前层按键映射行（动态渲染） -->
+      <div class="overlay-row"> <!-- 固定提示行 1：左摇杆 -->
         <span class="ov-acc">左摇杆</span><span class="ov-dim">→</span><span class="ov-text">WASD 移动</span>
       </div>
-      <div class="overlay-row">
+      <div class="overlay-row"> <!-- 固定提示行 2：右摇杆 -->
         <span class="ov-acc">右摇杆</span><span class="ov-dim">→</span><span class="ov-text">视角控制</span>
       </div>
-      <div class="overlay-faint">（点击标题收起）</div>
+      <div class="overlay-faint">（点击标题收起）</div> <!-- 收起提示 -->
     </div>
   </div>
-  <script src="overlay.js"></script>
+  <script src="overlay.js"></script> <!-- 悬浮窗前端逻辑脚本 -->
 </body>
 </html>

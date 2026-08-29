@@ -1,99 +1,68 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <title>Gamepad 键鼠映射</title>
-  <link rel="stylesheet" href="style.css">
+<!DOCTYPE html> <!-- 声明文档类型为 HTML5 -->
+<html lang="zh-CN"> <!-- 页面语言为简体中文 -->
+<head> <!-- 头部：页面元信息与资源引用 -->
+  <meta charset="UTF-8"> <!-- 字符编码 UTF-8（源码含中文必须） -->
+  <title>Gamepad 键鼠映射</title> <!-- 浏览器标签页标题 -->
+  <link rel="stylesheet" href="style.css"> <!-- 引入全局样式表（深色玻璃拟态主题） -->
 </head>
-<body>
+<body> <!-- 页面主体 -->
   <!-- ==================== 主视图 ==================== -->
-  <div id="view-main" class="root">
-    <div class="header">
-      <div class="title">Gamepad 键鼠映射</div>
+  <div id="view-main" class="root"> <!-- 主视图根容器：flex 纵向布局 -->
+    <div class="header"> <!-- 顶部标题栏 -->
+      <div class="title">Gamepad 键鼠映射</div> <!-- 程序主标题（渐变文字） -->
+      <!-- 连接/运行状态胶囊：左侧状态圆点 + 右侧状态文字（由 main.js 每 50ms 刷新） -->
       <div class="status"><span id="status-dot" class="dot off"></span><span id="status-text">手柄未连接</span></div>
     </div>
 
-    <!-- 重命名 / 复制输入行 -->
+    <!-- 重命名 / 复制输入行（默认隐藏，由 main.js 的 renderRenameRow 控制显示） -->
     <div id="rename-row" class="rename-row" style="display:none">
-      <span id="rename-hint" class="dim">重命名操作集</span>
-      <input id="rename-input" class="rename-input" placeholder="输入名称" autocomplete="off">
-      <button class="btn" id="rename-ok">确定</button>
-      <button class="btn" id="rename-cancel">取消</button>
+      <span id="rename-hint" class="dim">重命名操作集</span> <!-- 提示文字（重命名/复制） -->
+      <input id="rename-input" class="rename-input" placeholder="输入名称" autocomplete="off"> <!-- 名称输入框 -->
+      <button class="btn" id="rename-ok">确定</button> <!-- 确认按钮 -->
+      <button class="btn" id="rename-cancel">取消</button> <!-- 取消按钮 -->
     </div>
 
-    <div class="body">
+    <div class="body"> <!-- 主体两栏布局 -->
       <!-- 左栏：操作集管理 -->
-      <div class="panel left-panel">
-        <div class="panel-title">操作集管理</div>
-        <div id="set-chips" class="chips-row"></div>
-        <div class="btn-row">
-          <button class="btn" id="btn-add">添加</button>
-          <button class="btn" id="btn-copy">复制</button>
-          <button class="btn" id="btn-rename">重命名</button>
-          <button class="btn" id="btn-delete">删除</button>
+      <div class="panel left-panel"> <!-- 玻璃卡片面板 -->
+        <div class="panel-title">操作集管理</div> <!-- 面板标题 -->
+        <div id="set-chips" class="chips-row"></div> <!-- 操作集 chips 容器（main.js 动态渲染） -->
+        <div class="btn-row"> <!-- 操作集管理按钮行 -->
+          <button class="btn" id="btn-add">添加</button> <!-- 添加操作集 -->
+          <button class="btn" id="btn-copy">复制</button> <!-- 复制操作集 -->
+          <button class="btn" id="btn-rename">重命名</button> <!-- 重命名操作集 -->
+          <button class="btn" id="btn-delete">删除</button> <!-- 删除操作集 -->
         </div>
-        <div id="layer-list" class="layer-list"></div>
+        <div id="layer-list" class="layer-list"></div> <!-- 层列表（公共层 + 操作层，main.js 动态渲染，点击打开编辑窗口） -->
       </div>
 
       <!-- 右栏：信息 + 设置 + 操作 -->
-      <div class="panel right-panel">
-        <div id="info-col" style="display:flex;flex-direction:column;gap:2px;"></div>
-        <div class="dim">全局设置</div>
-        <div id="settings-col" style="display:flex;flex-direction:column;gap:8px;"></div>
-        <div class="dim">悬浮窗</div>
-        <div class="slider-row">
-          <div class="slider-label">透明度</div>
-          <button class="mini" onclick="App.adjustOpacity(-0.05)">−</button>
-          <div class="slider-val" id="opacity-val">85%</div>
-          <button class="mini" onclick="App.adjustOpacity(0.05)">+</button>
+      <div class="panel right-panel"> <!-- 玻璃卡片面板 -->
+        <div id="info-col" style="display:flex;flex-direction:column;gap:2px;"></div> <!-- 当前操作集/层/锁存信息（动态渲染） -->
+        <div class="dim">全局设置</div> <!-- 设置区标题 -->
+        <div id="settings-col" style="display:flex;flex-direction:column;gap:8px;"></div> <!-- 全局设置调整行（动态渲染） -->
+        <div class="dim">悬浮窗</div> <!-- 悬浮窗设置区标题 -->
+        <div class="slider-row"> <!-- 透明度调整行 -->
+          <div class="slider-label">透明度</div> <!-- 名称 -->
+          <button class="mini" onclick="App.adjustOpacity(-0.05)">−</button> <!-- 降低透明度 -->
+          <div class="slider-val" id="opacity-val">85%</div> <!-- 当前透明度百分比 -->
+          <button class="mini" onclick="App.adjustOpacity(0.05)">+</button> <!-- 提高透明度 -->
         </div>
-        <div class="btn-row">
-          <button class="btn-toggle stopped" id="btn-toggle">开始映射</button>
-          <button class="btn" id="btn-save">保存配置</button>
-          <button class="btn" id="btn-reset">重置默认</button>
+        <div class="btn-row"> <!-- 映射控制按钮行 -->
+          <button class="btn-toggle stopped" id="btn-toggle">开始映射</button> <!-- 开始/停止映射（颜色随状态切换） -->
+          <button class="btn" id="btn-save">保存配置</button> <!-- 保存配置 -->
+          <button class="btn" id="btn-reset">重置默认</button> <!-- 重置默认配置 -->
         </div>
-        <div class="btn-row">
-          <button class="btn" id="btn-overlay">显示悬浮窗</button>
-          <button class="btn" id="btn-help">使用说明</button>
-          <button class="btn" id="btn-quit">退出</button>
+        <div class="btn-row"> <!-- 窗口操作按钮行 -->
+          <button class="btn" id="btn-overlay">显示悬浮窗</button> <!-- 显示/关闭悬浮窗 -->
+          <button class="btn" id="btn-help">使用说明</button> <!-- 打开独立「使用说明」窗口 -->
+          <button class="btn" id="btn-quit">退出</button> <!-- 退出程序 -->
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ==================== 层编辑视图 ==================== -->
-  <div id="view-edit" class="root" style="display:none">
-    <div class="edit-header">
-      <div id="edit-title" class="edit-title">编辑层</div>
-      <button class="btn" id="edit-back">返回</button>
-    </div>
-    <div class="edit-body">
-      <div id="edit-grid" class="edit-grid"></div>
-      <div class="edit-divider"></div>
-      <div class="edit-right">
-        <div class="edit-current-row">
-          <div id="edit-current" class="dim"></div>
-          <button class="btn danger" id="edit-clear">清除映射</button>
-        </div>
-        <div class="dim">动作类型</div>
-        <div id="edit-kinds" class="chips-row"></div>
-        <div id="edit-target"></div>
-        <div id="edit-subs-label" class="dim"></div>
-        <div id="edit-subs" class="chips-row"></div>
-        <div class="faint">说明：切层动作由公共层的 SwitchLayer 映射驱动；操作层子命令用于组合键（如 Ctrl+1）。</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ==================== 帮助视图 ==================== -->
-  <div id="view-help" class="root help-view" style="display:none">
-    <div class="edit-header">
-      <div class="edit-title">Gamepad 键鼠映射 · 使用说明</div>
-      <button class="btn" id="help-back">返回</button>
-    </div>
-    <div id="help-sections" class="help-sections"></div>
-  </div>
-
-  <script src="main.js"></script>
+  <!-- 层编辑（edit.html）与使用说明（help.html）为独立窗口 -->
+  <script src="main.js"></script> <!-- 主窗口前端逻辑脚本 -->
 </body>
 </html>

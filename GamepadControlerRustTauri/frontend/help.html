@@ -1,0 +1,20 @@
+<!DOCTYPE html> <!-- 声明文档类型为 HTML5 -->
+<html lang="zh-CN"> <!-- 页面语言为简体中文 -->
+<head> <!-- 头部：页面元信息与资源引用 -->
+  <meta charset="UTF-8"> <!-- 字符编码 UTF-8（源码含中文必须） -->
+  <title>使用说明</title> <!-- 浏览器标签页标题 -->
+  <link rel="stylesheet" href="style.css"> <!-- 引入全局样式表（与主窗口同主题） -->
+</head>
+<body>
+  <!-- 独立「使用说明」窗口：由主窗口 WebviewWindow("help-win") 打开 -->
+  <div class="root help-view"> <!-- 根容器：复用 root 布局，允许滚动 -->
+    <div class="edit-header"> <!-- 帮助窗口头部 -->
+      <div class="edit-title">Gamepad 键鼠映射 · 使用说明</div> <!-- 标题 -->
+      <button class="btn" id="help-close">关闭</button> <!-- 右上角关闭按钮（help.js 绑定关闭窗口） -->
+    </div>
+    <div id="help-sections" class="help-sections"></div> <!-- 使用说明章节列表（help.js 静态渲染） -->
+  </div>
+
+  <script src="help.js"></script> <!-- 帮助窗口前端逻辑脚本 -->
+</body>
+</html>
