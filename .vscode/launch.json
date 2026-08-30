@@ -1,0 +1,17 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug GamepadControlerRustTauri",
+      "cargo": {
+        "args": ["build", "--bin", "gamepad_controler_tauri"],
+        "cwd": "${workspaceFolder}/GamepadControlerRustTauri",
+        "extraArgs": []
+      },
+      "program": "${workspaceFolder}/GamepadControlerRustTauri/target/debug/gamepad_controler_tauri.exe",
+      "cwd": "${workspaceFolder}/GamepadControlerRustTauri"
+    }
+  ]
+}
