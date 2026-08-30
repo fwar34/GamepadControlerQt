@@ -26,34 +26,34 @@ skinparam componentStyle rectangle
 skinparam packageStyle rectangle
 
 package "Tauri 主进程（Rust 后端）" {
-    [main.rs] as MAIN
-    [commands.rs\nIPC 命令层] as CMD
-    [core/\n映射核心] as CORE
-    [config_manager.rs\n配置文件读写] as CFG
-    [ui/shared.rs\n共享状态 AppShared] as SHARED
-    [XInputGamepadSource\n手柄轮询线程] as XIN
-    [InputInjector\nWindows SendInput] as INJ
+    component "main.rs\n程序入口" as MainRs
+    component "commands.rs\nIPC 命令层" as CommandsRs
+    component "core/\n映射核心模块" as CoreModule
+    component "config_manager.rs\n配置文件读写" as ConfigManager
+    component "ui/shared.rs\n共享状态 AppShared" as UiShared
+    component "XInputGamepadSource\n手柄轮询线程" as XInputSource
+    component "InputInjector\nWindows SendInput 注入" as InputInjector
 }
 
 package "WebView 前端" {
-    [index.html\n主窗口] as IDX
-    [edit.html\n层编辑页] as EDIT
-    [overlay.html\n悬浮窗] as OVL
-    [frontend/*.js\n轮询 + invoke] as JS
+    component "index.html\n主窗口" as IndexHtml
+    component "edit.html\n层编辑页" as EditHtml
+    component "overlay.html\n悬浮窗" as OverlayHtml
+    component "frontend/*.js\n轮询 + invoke 脚本" as FrontendJs
 }
 
-MAIN --> CMD : 注册命令
-MAIN --> CORE
-MAIN --> SHARED
-CMD --> CORE : State<AppState> 注入
-CORE --> INJ : 注入键鼠
-SHARED --> XIN : 轮询回调
-CMD -.> JS : invoke / 返回 JSON
-JS -.> IDX
-JS -.> EDIT
-JS -.> OVL
-CORE -.UiEvent 事件.-> JS : mpsc 通道 / 轮询快照
-CFG ..> CORE : 加载/保存配置
+MainRs --> CommandsRs : 注册命令
+MainRs --> CoreModule
+MainRs --> UiShared
+CommandsRs --> CoreModule : State<AppState> 注入
+CoreModule --> InputInjector : 注入键鼠
+UiShared --> XInputSource : 创建并注入回调闭包
+FrontendJs -.-> CommandsRs : invoke 调用 / 返回 JSON
+FrontendJs -.-> IndexHtml
+FrontendJs -.-> EditHtml
+FrontendJs -.-> OverlayHtml
+CoreModule -.-> FrontendJs : UiEvent 事件（mpsc 通道 / 轮询快照）
+ConfigManager ..> CoreModule : 提供/保存配置数据\n（load/save 由 main/commands 调用）
 @enduml
 ```
 
@@ -68,48 +68,48 @@ CFG ..> CORE : 加载/保存配置
 left to right direction
 
 package "src/" {
-  [main.rs\n程序入口] as M
-  [commands.rs\nTauri IPC 命令] as C
+  component "main.rs\n程序入口" as MainRs
+  component "commands.rs\nTauri IPC 命令层" as CommandsRs
 
   package "core/" {
-    [mod.rs\n子模块 + UiEvent] as CM
-    [app.rs\nAppCore 组合层] as A
-    [steam_input.rs\nSteamInput 映射引擎] as S
-    [mapper.rs\nMapperState / LookState / LookRunner] as P
-    [injector.rs\nInputInjector(SendInput)] as I
-    [xinput_source.rs\nXInputGamepadSource] as X
-    [mapping_types.rs\n数据模型] as T
-    [input_types.rs\n按钮/摇杆/键码类型] as IT
-    [config.rs\nJSON 序列化] as CF
-    [config_manager.rs\n文件读写] as CMG
+    component "mod.rs\n子模块导出 + UiEvent" as CoreMod
+    component "app.rs\nAppCore 组合层" as AppRs
+    component "steam_input.rs\nSteamInput 映射引擎" as SteamInputRs
+    component "mapper.rs\nMapperState + LookState + LookRunner" as MapperRs
+    component "injector.rs\nInputInjector (SendInput)" as InjectorRs
+    component "xinput_source.rs\nXInputGamepadSource" as XInputSourceRs
+    component "mapping_types.rs\n三层数据模型" as MappingTypesRs
+    component "input_types.rs\n按钮/摇杆/键码类型" as InputTypesRs
+    component "config.rs\nJSON 序列化定义" as ConfigRs
+    component "config_manager.rs\n配置文件读写" as ConfigManagerRs
   }
 
   package "ui/" {
-    [shared.rs\nAppShared 共享状态] as U
+    component "shared.rs\nAppShared 共享状态" as UiSharedRs
   }
 }
 
-M --> C
-M --> CM
-M --> U
-CM --> A
-CM --> S
-CM --> P
-CM --> I
-CM --> X
-CM --> T
-CM --> IT
-CM --> CF
-CM --> CMG
-U --> A : Arc<Mutex<AppCore>>
-U --> P : Arc<Mutex<LookRunner>>
-U --> X : Arc<Mutex<XInputGamepadSource>>
-A --> S
-A --> P
-A --> I
-S --> T
-P --> IT
-P --> I
+MainRs --> CommandsRs
+MainRs --> CoreMod
+MainRs --> UiSharedRs
+CoreMod --> AppRs
+CoreMod --> SteamInputRs
+CoreMod --> MapperRs
+CoreMod --> InjectorRs
+CoreMod --> XInputSourceRs
+CoreMod --> MappingTypesRs
+CoreMod --> InputTypesRs
+CoreMod --> ConfigRs
+CoreMod --> ConfigManagerRs
+UiSharedRs --> AppRs : Arc<Mutex<AppCore>>
+UiSharedRs --> MapperRs : Arc<Mutex<LookRunner>>
+UiSharedRs --> XInputSourceRs : Arc<Mutex<XInputGamepadSource>>
+AppRs --> SteamInputRs
+AppRs --> MapperRs
+AppRs --> InjectorRs
+SteamInputRs --> MappingTypesRs
+MapperRs --> InputTypesRs
+MapperRs --> InjectorRs
 @enduml
 ```
 
@@ -357,28 +357,28 @@ SteamInput -> [前端 UI] : UiEvent (mpsc / 轮询快照)
 
 ```plantuml
 @startuml
-actor Gamepad as G
-participant "Poller\n(xinput_source.rs)" as POLL
-participant "AppCore\n(app.rs)" as CORE
-participant "SteamInput\n(steam_input.rs)" as SI
-participant "MapperState\n(mapper.rs)" as MS
-participant "InputInjector\n(injector.rs)" as INJ
-participant "Windows\nSendInput" as WIN
+actor "游戏手柄硬件" as GamepadHW
+participant "手柄轮询器\nXInputGamepadSource (xinput_source.rs)" as GamepadPoller
+participant "AppCore 组合核心\n(app.rs)" as AppCore
+participant "SteamInput 映射引擎\n(steam_input.rs)" as SteamInput
+participant "MapperState 注入状态管理\n(mapper.rs)" as MapperState
+participant "InputInjector 输入注入器\n(injector.rs)" as InputInjector
+participant "Windows 系统\nSendInput API" as WindowsSys
 
-G -> POLL : 按下按钮
-POLL -> POLL : XInputGetState\n检测边沿变化
-POLL -> CORE : callback(SourceEvent::Button(b, true))
-CORE -> SI : handle_button_event(b, true)
+GamepadHW -> GamepadPoller : 按下按钮
+GamepadPoller -> GamepadPoller : XInputGetState\n检测边沿变化
+GamepadPoller -> AppCore : callback(SourceEvent::Button(b, true))
+AppCore -> SteamInput : handle_button_event(b, true)
 alt 有效映射
-  SI --> CORE : ButtonDispatch::Execute{mapping}
-  CORE -> MS : handle_button(b, true, &mapping, injector)
-  MS -> INJ : send_key_down(android_key_code)
-  INJ -> WIN : SendInput(按下 VK)
+  SteamInput --> AppCore : ButtonDispatch::Execute{mapping}
+  AppCore -> MapperState : handle_button(b, true, &mapping, injector)
+  MapperState -> InputInjector : send_key_down(android_key_code)
+  InputInjector -> WindowsSys : SendInput(按下 VK)
 else 切层动作
-  SI -> SI : activate_layer(目标层)
-  SI --> CORE : ButtonDispatch::None
+  SteamInput -> SteamInput : activate_layer(目标层)
+  SteamInput --> AppCore : ButtonDispatch::None
 else 无映射
-  SI --> CORE : ButtonDispatch::None
+  SteamInput --> AppCore : ButtonDispatch::None
 end
 @enduml
 ```
@@ -387,21 +387,21 @@ end
 
 ```plantuml
 @startuml
-actor Gamepad as G
-participant Poller as POLL
-participant AppCore as CORE
-participant SteamInput as SI
-participant MapperState as MS
-participant InputInjector as INJ
+actor "游戏手柄硬件" as GamepadHW
+participant "手柄轮询器\nXInputGamepadSource" as GamepadPoller
+participant "AppCore 组合核心" as AppCore
+participant "SteamInput 映射引擎" as SteamInput
+participant "MapperState 注入状态管理" as MapperState
+participant "InputInjector 输入注入器" as InputInjector
 
-G -> POLL : 松开按钮
-POLL -> CORE : callback(Button(b, false))
-CORE -> SI : handle_button_event(b, false)
-SI --> CORE : ButtonDispatch::Execute{is_pressed:false, mapping}
-CORE -> MS : handle_button(b, false, &mapping, injector)
-note over MS : 按「已注入状态」释放：\n子命令逆序 → 主键 → 鼠标\n（不依赖当前层映射，避免切层卡键）
-MS -> INJ : send_key_up(主键) / 子命令
-MS -> MS : 清理 pressed_* 记录
+GamepadHW -> GamepadPoller : 松开按钮
+GamepadPoller -> AppCore : callback(Button(b, false))
+AppCore -> SteamInput : handle_button_event(b, false)
+SteamInput --> AppCore : ButtonDispatch::Execute{is_pressed:false, mapping}
+AppCore -> MapperState : handle_button(b, false, &mapping, injector)
+note over MapperState : 按「已注入状态」释放：\n子命令逆序 → 主键 → 鼠标\n（不依赖当前层映射，避免切层卡键）
+MapperState -> InputInjector : send_key_up(主键) / 子命令
+MapperState -> MapperState : 清理 pressed_* 记录
 @enduml
 ```
 
@@ -409,26 +409,26 @@ MS -> MS : 清理 pressed_* 记录
 
 ```plantuml
 @startuml
-actor Gamepad as G
-participant Poller as POLL
-participant AppCore as CORE
-participant SteamInput as SI
-participant MapperState as MS
-participant LookState as LS
-participant "LookRunner 线程" as LR
-participant InputInjector as INJ
+actor "游戏手柄硬件" as GamepadHW
+participant "手柄轮询器\nXInputGamepadSource" as GamepadPoller
+participant "AppCore 组合核心" as AppCore
+participant "SteamInput 映射引擎" as SteamInput
+participant "MapperState 注入状态管理" as MapperState
+participant "LookState 视角状态\n（原子量共享）" as LookState
+participant "LookRunner 视角线程\n（125Hz 独立线程）" as LookRunnerThread
+participant "InputInjector 输入注入器" as InputInjector
 
-G -> POLL : 右摇杆推动
-POLL -> CORE : callback(Stick(RightStick, x, y))
-CORE -> SI : handle_stick_input(...)
-SI --> CORE : (stick, x, y) 透传
-CORE -> MS : handle_stick(..., injector, look)
-MS -> LS : store_f32(latest_x/y, x/y)
+GamepadHW -> GamepadPoller : 右摇杆推动
+GamepadPoller -> AppCore : callback(Stick(RightStick, x, y))
+AppCore -> SteamInput : handle_stick_input(...)
+SteamInput --> AppCore : (stick, x, y) 透传
+AppCore -> MapperState : handle_stick(..., injector, look)
+MapperState -> LookState : store_f32(latest_x/y, x/y)
 loop 每 8ms (125Hz)
-  LR -> LS : load_f32(latest_x/y) + 灵敏度/平滑/加速
-  LR -> LR : 幅值钳制 → 加速曲线 → EMA 平滑 → 位移积分
-  LR -> INJ : send_mouse_move(dx, dy)
-  INJ -> INJ : SendInput(相对移动)
+  LookRunnerThread -> LookState : load_f32(latest_x/y) + 灵敏度/平滑/加速
+  LookRunnerThread -> LookRunnerThread : 幅值钳制 → 加速曲线 → EMA 平滑 → 位移积分
+  LookRunnerThread -> InputInjector : send_mouse_move(dx, dy)
+  InputInjector -> InputInjector : SendInput(相对移动)
 end
 @enduml
 ```
@@ -437,26 +437,26 @@ end
 
 ```plantuml
 @startuml
-participant main as M
-participant "CreateMutexW" as MUTEX
-participant AppShared as S
-participant AppCore as C
-participant config_manager as CFG
-participant "tauri::Builder" as B
-participant WebviewWindowBuilder as WB
+participant "main.rs 主函数" as MainFn
+participant "CreateMutexW\n命名互斥体 API" as NamedMutex
+participant "AppShared 共享状态组合体" as AppShared
+participant "AppCore 组合核心" as AppCore
+participant "config_manager\n配置文件管理器" as ConfigManager
+participant "tauri::Builder\n应用构建器" as TauriBuilder
+participant "WebviewWindowBuilder\n悬浮窗构建器" as OverlayWindowBuilder
 
-M -> MUTEX : 创建命名互斥体
-M -> M : 已有实例? → 聚焦主窗口并退出
-M -> S : AppShared::new()
-S -> C : AppCore::new(event_tx)
-S -> CFG : config_manager::load()
-CFG --> S : ControllerProfile
-S -> C : core.load_profile(profile)
-M -> B : Builder::default()\n.manage(AppState).invoke_handler(..)
-B -> B : .setup() 创建悬浮窗
-B -> WB : WebviewWindowBuilder("overlay", overlay.html)\n.transparent().always_on_top().visible(false)
-B -> B : .run(闭包)
-note over B : RunEvent::Exit → stop_mapping()\n+ 自动保存配置
+MainFn -> NamedMutex : 创建命名互斥体
+MainFn -> MainFn : 已有实例? → 聚焦主窗口并退出
+MainFn -> AppShared : AppShared::new()
+AppShared -> AppCore : AppCore::new(event_tx)
+MainFn -> ConfigManager : config_manager::load()
+ConfigManager --> MainFn : ControllerProfile
+MainFn -> AppCore : core.load_profile(profile)
+MainFn -> TauriBuilder : Builder::default()\n.manage(AppState).invoke_handler(..)
+TauriBuilder -> TauriBuilder : .setup() 创建悬浮窗
+TauriBuilder -> OverlayWindowBuilder : WebviewWindowBuilder("overlay", overlay.html)\n.transparent().always_on_top().visible(false)
+TauriBuilder -> TauriBuilder : .run(闭包)
+note over TauriBuilder : RunEvent::Exit → stop_mapping()\n+ 自动保存配置
 @enduml
 ```
 
@@ -464,22 +464,22 @@ note over B : RunEvent::Exit → stop_mapping()\n+ 自动保存配置
 
 ```plantuml
 @startuml
-actor User as U
-participant "前端 edit.js" as JS
-participant "commands.rs\nset_mapping" as CMD
-participant "AppCore(锁)" as CORE
-participant "SteamInput" as SI
-participant "前端 轮询" as POLLJS
+actor "用户" as User
+participant "前端 edit.js\n层编辑脚本" as EditJs
+participant "commands.rs\nset_mapping 命令" as SetMappingCmd
+participant "AppCore 组合核心（互斥锁内）" as AppCoreLocked
+participant "SteamInput 映射引擎" as SteamInput
+participant "前端 轮询刷新\n(get_snapshot)" as FrontendPolling
 
-U -> JS : 点击按键/选择动作
-JS -> CMD : invoke("set_mapping", {layer_id, button, ...})
-CMD -> CORE : lock(core) → 查找层 → 写入 KeyMapping
-CORE -> SI : profile 修改 + profile_rev+1
-CMD --> JS : 返回结果
+User -> EditJs : 点击按键/选择动作
+EditJs -> SetMappingCmd : invoke("set_mapping", {layer_id, button, ...})
+SetMappingCmd -> AppCoreLocked : lock(core) → 查找层 → 写入 KeyMapping
+AppCoreLocked -> SteamInput : 查找并写入 KeyMapping 到 layer\n(AppCore 使 profile_rev+1)
+SetMappingCmd --> EditJs : 返回结果
 loop 每 50ms
-  JS -> CMD : invoke("get_snapshot")
-  CMD --> JS : Snapshot(JSON)
-  JS -> JS : 重绘界面
+  EditJs -> FrontendPolling : invoke("get_snapshot")
+  FrontendPolling --> EditJs : Snapshot(JSON)
+  EditJs -> EditJs : 重绘界面
 end
 @enduml
 ```
@@ -547,43 +547,43 @@ end
 left to right direction
 skinparam componentStyle rectangle
 
-package "前端 (index/edit/overlay.js)" {
-  [get_snapshot] as C1
-  [get_overlay_snapshot] as C2
-  [start_mapping] as C3
-  [stop_mapping] as C4
-  [add_operation_set] as C5
-  [rename_operation_set] as C6
-  [copy_operation_set] as C7
-  [delete_operation_set] as C8
-  [switch_operation_set] as C9
-  [adjust_setting] as C10
-  [save_config] as C11
-  [reset_config] as C12
-  [toggle_overlay] as C13
-  [set_overlay_opacity] as C14
-  [quit_app] as C15
-  [get_layer_edit_snapshot] as C16
-  [get_mapping] as C17
-  [set_mapping] as C18
-  [clear_mapping] as C19
-  [toggle_sub] as C20
+package "前端 JS (index/edit/overlay.js)" {
+  component "get_snapshot\n主窗口整体快照" as CmdGetSnapshot
+  component "get_overlay_snapshot\n悬浮窗快照" as CmdGetOverlaySnapshot
+  component "start_mapping\n开始映射" as CmdStartMapping
+  component "stop_mapping\n停止映射" as CmdStopMapping
+  component "add_operation_set\n新增操作集" as CmdAddOperationSet
+  component "rename_operation_set\n重命名操作集" as CmdRenameOperationSet
+  component "copy_operation_set\n复制操作集" as CmdCopyOperationSet
+  component "delete_operation_set\n删除操作集" as CmdDeleteOperationSet
+  component "switch_operation_set\n切换操作集" as CmdSwitchOperationSet
+  component "adjust_setting\n调整全局设置" as CmdAdjustSetting
+  component "save_config\n保存配置" as CmdSaveConfig
+  component "reset_config\n重置配置" as CmdResetConfig
+  component "toggle_overlay\n切换悬浮窗" as CmdToggleOverlay
+  component "set_overlay_opacity\n设置悬浮窗透明度" as CmdSetOverlayOpacity
+  component "quit_app\n退出应用" as CmdQuitApp
+  component "get_layer_edit_snapshot\n层编辑页快照" as CmdGetLayerEditSnapshot
+  component "get_mapping\n读取单键映射" as CmdGetMapping
+  component "set_mapping\n写入单键映射" as CmdSetMapping
+  component "clear_mapping\n清除单键映射" as CmdClearMapping
+  component "toggle_sub\n增删子命令" as CmdToggleSub
 }
 
-package "commands.rs (#[tauri::command])" {
-  [Snapshot] as D1
-  [OverlaySnapshot] as D2
-  [LayerEditSnapshot] as D3
-  [MappingView] as D4
-  [AppCore 共享状态] as CORE
+package "commands.rs (#[tauri::command] 后端)" {
+  component "Snapshot\n主窗口快照 DTO" as DtoSnapshot
+  component "OverlaySnapshot\n悬浮窗快照 DTO" as DtoOverlaySnapshot
+  component "LayerEditSnapshot\n层编辑快照 DTO" as DtoLayerEditSnapshot
+  component "MappingView\n单键映射视图 DTO" as DtoMappingView
+  component "AppCore 共享状态\n(Arc<Mutex<AppCore>>)" as AppCoreShared
 }
 
-C1 --> D1 : 返回
-C2 --> D2 : 返回
-C16 --> D3 : 返回
-C17 --> D4 : 返回
-C3 --> CORE : start_mapping
-C18 --> CORE : 写入 KeyMapping
+CmdGetSnapshot --> DtoSnapshot : 返回
+CmdGetOverlaySnapshot --> DtoOverlaySnapshot : 返回
+CmdGetLayerEditSnapshot --> DtoLayerEditSnapshot : 返回
+CmdGetMapping --> DtoMappingView : 返回
+CmdStartMapping --> AppCoreShared : 调用 start_mapping
+CmdSetMapping --> AppCoreShared : 写入 KeyMapping
 @enduml
 ```
 
