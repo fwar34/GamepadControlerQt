@@ -26,6 +26,7 @@ use crate::core::mapping_types::{ActionType, KeyMapping};
 use crate::core::UiEvent;
 // 【Rust 语法】use 嵌套导入：HashMap（键值映射）与 HashSet（不重复元素集合）。
 use std::collections::{HashMap, HashSet};
+use std::ptr::write_unaligned;
 // 【Rust 语法】use 嵌套导入：原子类型 AtomicBool/AtomicU32 与内存序 Ordering，用于多线程无锁共享数据。
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 // 【Rust 语法】use 导入语句：mpsc（多生产者单消费者）通道的发送端 Sender，用于向 UI 线程发送事件。
@@ -218,6 +219,12 @@ impl MapperState {
         subs: &[i32], // 子命令键码切片（只读借用）
         injector: &InputInjector, // 注入器引用（只读）
     ) { // 结束参数列表，函数体开始
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(r"inject_log.txt").unwrap();
+        writeln!(f, "keydown code={}", main_key_code).unwrap();
         if self.pressed_main_keys.contains_key(&button) { // 若该按钮的主键已按下
             return; // 已按下，忽略重复
         } // 结束 if 判断

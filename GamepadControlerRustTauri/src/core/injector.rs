@@ -246,7 +246,7 @@ unsafe fn inject_key(code: i32, down: bool) { // 函数体开始
             }, // KEYBDINPUT 结构体结束
         }, // INPUT_0 联合体成员结束
     }; // INPUT 结构体结束
-    SendInput(&[input], 1); // 【Rust 语法】FFI 调用 SendInput：&[input] 是数组切片引用（内含 1 个事件），
+    SendInput(&[input], std::mem::size_of::<INPUT>() as i32); // 【Rust 语法】FFI 调用 SendInput：&[input] 是数组切片引用（内含 1 个事件），
     // 第二参数 1 为事件个数；该函数返回注入的事件数（此处忽略返回值）。
 } // 函数结束
 
@@ -270,7 +270,7 @@ unsafe fn inject_mouse_button_raw(b: MouseButton, down: bool) { // 函数体开�
             }, // MOUSEINPUT 结构体结束
         }, // INPUT_0 联合体成员结束
     }; // INPUT 结构体结束
-    SendInput(&[input], 1); // 调用 SendInput 注入一个鼠标事件
+    SendInput(&[input], std::mem::size_of::<INPUT>() as i32); // 调用 SendInput 注入一个鼠标事件
 } // 函数结束
 
 /// 注入相对鼠标移动事件
@@ -288,7 +288,7 @@ unsafe fn inject_mouse_move_raw(dx: i32, dy: i32) { // 函数体开始
             }, // MOUSEINPUT 结构体结束
         }, // INPUT_0 联合体成员结束
     }; // INPUT 结构体结束
-    SendInput(&[input], 1); // 调用 SendInput 注入一个鼠标移动事件
+    SendInput(&[input], std::mem::size_of::<INPUT>() as i32); // 调用 SendInput 注入一个鼠标移动事件
 } // 函数结束
 
 /// WindowsInputInjector —— SendInput 实现
@@ -411,7 +411,7 @@ impl InputInjector {
             }, // INPUT_0 联合体成员结束
         }; // INPUT 结构体结束
         unsafe { // 【Rust 语法】unsafe 块：包裹 FFI 调用
-            SendInput(&[input], 1); // 调用 SendInput 注入滚轮事件
+            SendInput(&[input], std::mem::size_of::<INPUT>() as i32); // 调用 SendInput 注入滚轮事件
         } // unsafe 块结束
     } // 方法结束
 
