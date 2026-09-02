@@ -701,6 +701,7 @@ html.overlay-html {
   overflow-y: auto;
   flex: none;        /* 不拉伸，按内容高度 */
   opacity: 0;        /* 默认透明，由 setExpanded 控制淡入（避免底部透明截闪现） */
-  transition: opacity 0.2s ease; /* 淡入过渡 */
+  transform: translateY(10px) scale(0.98); /* 收起态下移+微缩，配合展开/收起滑入滑出 */
+  transition: opacity 0.2s ease, transform 0.2s ease; /* 展开/收起淡入淡出 + 滑入滑出（快速不拖沓） */
 }
 #ov-map-list { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; } /* 映射列表：垂直排列可滚动 */

@@ -15,6 +15,8 @@ const { getCurrentWindow, LogicalSize } = window.__TAURI__.window;
 let expanded = false; // 悬浮窗是否处于展开状态
 let prevKey = null; // 上一次渲染内容对比串，避免重复渲染
 let lastFitH = 0; // 上次贴合高度，高度没变就不 setSize，避免频繁调整
+let animating = false; // 展开/收起高度动画进行中，fitHeight 跳过避免干扰分步生长
+let collapsing = false; // 收起动画中：映射区由 setExpanded 控制 display，render 跳过避免截断淡出
 
 const MIN_H = 60;  // 收起最小高度（防御下限；实际由 fitHeight 精确贴合卡片，四边透明带均为 4px）
 const MAX_H = 480; // 展开最大高度（超过则映射区内部滚动）
@@ -99,7 +101,8 @@ function render(snap) {
   setStyle('overlay-card', 'background', bg); // 内层卡片背景
 
   // 展开：映射列表
-  setStyle('ov-mappings', 'display', expanded ? 'flex' : 'none'); // 展开时显示映射区
+  // 收起动画中 display 由 setExpanded 控制（映射区脱离文档流淡出），此处跳过避免截断淡出
+  if (!collapsing) setStyle('ov-mappings', 'display', expanded ? 'flex' : 'none'); // 展开时显示映射区
   if (expanded) { // 仅展开时渲染映射列表
     setText('ov-map-title', '当前层映射: ' + esc(snap.layer_name)); // 映射列表标题
     setHTML('ov-map-list', snap.mappings.length === 0 // 生成映射行（内容不变则跳过重建）
@@ -116,6 +119,7 @@ function render(snap) {
 }
 
 async function fitHeight() {
+  if (animating) return; // 展开/收起高度动画进行中，跳过避免干扰分步生长
   await new Promise((r) => requestAnimationFrame(r)); // 等布局完成再测量
   const card = $('overlay-card');
   // 卡片高 + 外层 shell 上下深色间距（padding 8px*2 = 16px），窗口高度才贴合
@@ -126,19 +130,72 @@ async function fitHeight() {
   await getCurrentWindow().setSize(new LogicalSize(W, target));
 }
 
+// 分步调整窗口高度到目标高度：平滑"生长/收缩"动画（多帧 setSize + 缓动）。
+// 未传 targetArg 时按当前内容高度计算（展开用）；传了则用传入值（收起用收缩目标）
+async function animateHeight(targetArg) {
+  await new Promise((r) => requestAnimationFrame(r)); // 等布局完成再测量
+  const card = $('overlay-card');
+  const target = targetArg != null // 目标高度：传入值优先，否则按当前内容高度
+    ? targetArg
+    : Math.max(MIN_H, Math.min(card.offsetHeight + 16, MAX_H)); // 夹在上下限
+  if (target === lastFitH) return; // 高度没变则跳过
+  const from = lastFitH > 0 ? lastFitH : target; // 首帧无基线则直接用目标（避免从 0 生长）
+  const win = getCurrentWindow(); // 窗口句柄
+  const steps = 4; // 分步数：4 帧约 70ms 的快速平滑过渡（步数过多会拖慢且不流畅）
+  for (let i = 1; i <= steps; i++) { // 逐帧生长/收缩
+    const t = i / steps; // 进度 0~1
+    const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // easeInOutQuad 缓动
+    const h = Math.round(from + (target - from) * eased); // 当前帧高度
+    lastFitH = h; // 记录中间高度（供守卫对比）
+    await win.setSize(new LogicalSize(W, h)); // 调整窗口高度
+    await new Promise((r) => setTimeout(r, 16)); // 帧间隔
+  }
+  lastFitH = target; // 最终精确到位
+}
+
 // ---------------------------------------------------------------------
 // 展开 / 收起（同时调整窗口大小）
 // ---------------------------------------------------------------------
 async function setExpanded(v) {
   expanded = v;             // 更新展开状态
   prevKey = null;           // 强制重绘
-  $('ov-mappings').style.opacity = '0'; // 先隐藏映射区（仍占位，可测量高度）
+  animating = true;         // 展开/收起全程禁止 fitHeight 干预（render 内会调用）
   try {
-    const snap = await invoke('get_overlay_snapshot'); // 获取快照
-    render(snap);           // 渲染内容（占位，参与布局）
-  } catch (e) { console.error('overlay render:', e); }
-  await fitHeight();        // 一次性调整到实际内容高度，避免"先拉高再收缩"的底部透明截
-  if (expanded) $('ov-mappings').style.opacity = '1'; // 窗口到位后淡入
+    if (v) {
+      // 展开：映射区恢复文档流并显示，先透明+下移+微缩占位 → 窗口分步生长 → 淡入滑入归位
+      $('ov-mappings').style.display = 'flex'; // 显示（文档流，撑高卡片参与布局）
+      $('ov-mappings').style.opacity = '0'; // 透明占位
+      $('ov-mappings').style.transform = 'translateY(10px) scale(0.98)'; // 起始下移微缩
+      try {
+        const snap = await invoke('get_overlay_snapshot'); // 获取快照
+        render(snap);       // 渲染内容（占位，参与布局）
+      } catch (e) { console.error('overlay render:', e); }
+      await animateHeight(); // 窗口分步生长到展开高度
+      requestAnimationFrame(() => { // 下一帧淡入滑入（触发 transition）
+        $('ov-mappings').style.opacity = '1'; // 淡入
+        $('ov-mappings').style.transform = 'translateY(0) scale(1)'; // 上移归位、还原缩放
+      });
+    } else {
+      // 收起：映射区淡出滑出（仍占位，位置不跳动）→ 窗口收缩到收起高度 →
+      //       然后隐藏映射区。关键：先收缩再隐藏，收缩期间窗口 ≤ 内容高度，
+      //       底部是被裁剪（body 圆角内）而不是露出透明，整体颜色不变
+      collapsing = true; // 收起动画中：禁止 render 把映射区 display 设 none（否则淡出被截断）
+      $('ov-mappings').style.opacity = '0'; // 淡出
+      $('ov-mappings').style.transform = 'translateY(10px) scale(0.98)'; // 下移微缩滑出
+      await new Promise((r) => setTimeout(r, 200)); // 等淡出/滑出过渡完成（0.2s）
+      // 计算收起目标高度：当前（展开）内容高度 - 映射区高度 - 映射区前一个 gap（card gap 8px）
+      const card = $('overlay-card');
+      const mapping = $('ov-mappings');
+      const collapseH = Math.max(MIN_H, Math.min(card.offsetHeight + 16 - mapping.offsetHeight - 8, MAX_H));
+      await animateHeight(collapseH); // 先收缩窗口（映射区仍占位，底部内容被裁剪，不露透明）
+      $('ov-mappings').style.display = 'none'; // 收缩完成，隐藏映射区
+      $('ov-mappings').style.opacity = ''; // 清理内联透明度（恢复 CSS 默认，下次展开重新设置）
+      $('ov-mappings').style.transform = ''; // 清理位移/缩放
+      collapsing = false; // 恢复 render 对 display 的控制
+    }
+  } finally {
+    animating = false;      // 动画结束，恢复 fitHeight 自动贴合
+  }
 }
 
 // ---------------------------------------------------------------------
