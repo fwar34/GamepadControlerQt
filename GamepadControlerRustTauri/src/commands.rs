@@ -602,6 +602,10 @@ pub fn open_app(app: AppHandle, _: State<'_, AppState>) {
     let Some(win) = app.get_webview_window("main") else { // 按标签查找 main 窗口
         return; // 窗口不存在则返回
     }; // let-else 结束
+    // 【Rust 语法】主窗口可能被最小化：show 不会取消最小化，须先 unminimize 恢复
+    if win.is_minimized().unwrap_or(false) { // 判断窗口是否处于最小化状态（失败按非最小化处理）
+        win.unminimize().unwrap(); // 取消最小化，恢复窗口显示
+    }
     win.show().unwrap(); // 显示窗口
     win.set_focus().unwrap(); // 设置焦点
 }

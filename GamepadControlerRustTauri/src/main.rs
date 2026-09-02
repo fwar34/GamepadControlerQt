@@ -44,6 +44,33 @@ fn focus_existing_main_window() { // 已有实例时聚焦其主窗口
     } // unsafe 块结束
 } // 函数结束
 
+/// 给悬浮窗设置系统 DWM 圆角（Windows 11 22000+）。
+/// 让 DWM 把窗口四角裁剪成圆角，圆角外由系统处理为透明，不留透明缺口；
+/// 且为持久窗口属性，窗口尺寸变化后自动保持。Windows 10 不支持则忽略。
+fn apply_overlay_corner(win: &tauri::WebviewWindow) {
+    // 【Rust 语法】函数内 use：仅在本函数作用域内生效的导入，保持顶层命名空间整洁
+    use windows::Win32::Foundation::HWND; // Windows API：窗口句柄
+    use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND}; // Windows API：DWM 窗口属性 + 圆角偏好
+
+    // tauri 内部依赖 windows 0.61，本项目用 0.62，两者 HWND 底层都是 *mut c_void 包装，
+    // 这里只取底层指针重新包装，规避跨版本类型不兼容。
+    // 【Rust 语法】let-else：匹配 Result，Ok(hwnd) 则继续，Err 则提前 return
+    let Ok(tauri_hwnd) = win.hwnd() else { return }; // 获取窗口原始句柄
+    let hwnd = HWND(tauri_hwnd.0); // 底层指针重新包装为 0.62 版 HWND
+
+    // 【Rust 语法】&pref as *const _：取变量地址转为裸指针，交给原生 API
+    let pref = DWMWCP_ROUND; // 圆角偏好：圆形圆角（约 8px，与卡片圆角统一）
+    unsafe {
+        // 设置 DWM 圆角属性；Win10 下返回错误，直接忽略（保持默认直角）
+        let _ = DwmSetWindowAttribute( // 设置窗口圆角属性
+            hwnd, // 窗口句柄
+            DWMWA_WINDOW_CORNER_PREFERENCE, // 属性：窗口圆角偏好
+            &pref as *const _ as *const std::ffi::c_void, // 属性值指针
+            std::mem::size_of::<windows::Win32::Graphics::Dwm::DWM_WINDOW_CORNER_PREFERENCE>() as u32, // 属性值字节大小
+        ); // 属性设置调用结束
+    } // unsafe 块结束
+}
+
 /// 全局共享状态：跨线程共享的核心 + 悬浮窗显隐标志 + 悬浮窗透明度
 // 【Rust 语法】struct 结构体：pub 公开声明，含具名字段；该类型经 .manage() 注入 Tauri 状态，命令中可用 State<AppState> 获取
 pub struct AppState { // 全局共享状态结构体
@@ -133,7 +160,7 @@ fn main() { // 程序主入口
             }
             // setup 钩子：创建悬浮窗
             // 悬浮窗：无边框透明置顶小窗，默认隐藏；前端 overlay.html 负责渲染
-            let _overlay = tauri::WebviewWindowBuilder::new( // 创建 Webview 窗口构建器（_ 前缀避免未使用警告）
+            let overlay = tauri::WebviewWindowBuilder::new( // 创建 Webview 窗口构建器
                 app, // 传入应用句柄
                 "overlay", // 窗口标签名，供 get_webview_window("overlay") 查找
                 tauri::WebviewUrl::App("overlay.html".into()), // 加载前端打包资源中的 overlay.html
@@ -148,6 +175,8 @@ fn main() { // 程序主入口
             .visible(false) // 默认隐藏，由 toggle_overlay 控制显隐
             // 【Rust 语法】? 错误传播：Result 为 Ok 则取值，Err 则从 setup 闭包提前返回该错误
             .build()?; // 构建窗口，失败则 ? 传播错误
+            // 窗口四角用系统 DWM 圆角裁剪：圆角外由系统透明化，去掉透明缺口
+            apply_overlay_corner(&overlay);
             Ok(()) // 【Rust 语法】Ok 包装单元类型 ()：表示 setup 处理成功
         }) // setup 闭包结束
         // 【Rust 语法】generate_context! 宏：编译期生成应用上下文（含前端资源）；expect 在 Err 时 panic 并打印信息

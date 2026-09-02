@@ -16,7 +16,7 @@ let expanded = false; // 悬浮窗是否处于展开状态
 let prevKey = null; // 上一次渲染内容对比串，避免重复渲染
 let lastFitH = 0; // 上次贴合高度，高度没变就不 setSize，避免频繁调整
 
-const MIN_H = 130; // 收起最小高度（贴合收起内容，不再留大片透明）
+const MIN_H = 60;  // 收起最小高度（防御下限；实际由 fitHeight 精确贴合卡片，四边透明带均为 4px）
 const MAX_H = 480; // 展开最大高度（超过则映射区内部滚动）
 const W = 340;     // 悬浮窗固定宽度
 
@@ -78,11 +78,14 @@ function render(snap) {
   // L3 锁存警示（边框变橙 + 警示条）；类切换触发边框/光晕过渡动画
   const mouseToggle = !!snap.mouse_toggle; // 是否有鼠标长按锁存
   $('ov-warn').style.display = mouseToggle ? 'block' : 'none'; // 显示/隐藏警示条
-  $('overlay-card').classList.toggle('mouse-toggle', mouseToggle); // 切换卡片橙色边框样式
+  $('overlay-shell').classList.toggle('mouse-toggle', mouseToggle); // 切换外框橙色光晕样式
 
-  // 卡片背景透明度跟随设置（透明度越低越透明，配合透明窗口）
+  // 外框/卡片背景透明度跟随设置（透明度越低越透明，配合透明窗口）
   const op = typeof snap.opacity === 'number' ? snap.opacity : 0.85; // 取快照中的透明度，缺省 0.85
-  $('overlay-card').style.background = 'rgba(43, 45, 49, ' + op + ')'; // 应用半透明背景
+  const bg = 'rgba(43, 45, 49, ' + op + ')'; // 深色背景色（外框与卡片同色，深色区域统一）
+  document.body.style.background = bg; // body 兜底背景：覆盖窗口边缘缝隙，防止透明描边
+  $('overlay-shell').style.background = bg; // 外层容器背景（与卡片同色）
+  $('overlay-card').style.background = bg; // 内层卡片背景
 
   // 展开：映射列表
   $('ov-mappings').style.display = expanded ? 'flex' : 'none'; // 展开时显示映射区（淡入由 opacity 控制）
@@ -106,7 +109,8 @@ function render(snap) {
 async function fitHeight() {
   await new Promise((r) => requestAnimationFrame(r)); // 等布局完成再测量
   const card = $('overlay-card');
-  const h = card.offsetHeight + 8; // 卡片高 + 上下 margin（4px*2），最准确
+  // 卡片高 + 外层 shell 上下深色间距（padding 8px*2 = 16px），窗口高度才贴合
+  const h = card.offsetHeight + 16;
   const target = Math.max(MIN_H, Math.min(h, MAX_H)); // 夹在上下限之间
   if (target === lastFitH) return; // 高度没变则跳过
   lastFitH = target;               // 记录本次高度

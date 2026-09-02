@@ -554,7 +554,9 @@ body::before {
    ===================================================================== */
 body.overlay-body {
   margin: 0;               /* 去掉默认 8px margin，消除底部透明带 */
-  background: transparent;
+  /* 深色背景兜底：铺满整个窗口矩形。即使 shell 与窗口边缘存在细微缝隙
+     （DPI 缩放/尺寸取整），也会被 body 背景覆盖，避免窗口边缘露出透明"描边" */
+  background: rgba(43, 45, 49, 0.85); /* 与 shell/卡片同色（透明度由 JS 覆盖） */
   overflow: hidden;
 }
 
@@ -564,24 +566,33 @@ html.overlay-html {
   background: transparent; /* 悬浮窗 html 根元素透明 */
 }
 
+/* 外层容器：深色背景层。背景方角铺满窗口，四角圆角完全由系统 DWM 裁剪
+   （不设 border-radius，避免 CSS 圆角抗锯齿在透明窗口边缘形成半透明"描边"） */
+.overlay-shell {
+  margin: 0; /* 铺满窗口，无透明带；四角由系统 DWM 圆角裁剪 */
+  padding: 8px; /* 深色间距：环绕卡片四周 */
+  background: rgba(43, 45, 49, 0.85); /* 与卡片同色（透明度由 JS 覆盖） */
+  overflow: hidden; /* 裁剪子元素溢出（同时阻止外边距塌陷） */
+  transition: box-shadow 0.3s ease; /* 光晕过渡 */
+}
+
 .overlay-card {
-  margin: 4px; /* 四周留白（配合透明背景形成悬浮感） */
+  margin: 0; /* 铺满外框内部（与 shell 同边界） */
   display: flex; /* 弹性布局 */
   flex-direction: column; /* 垂直排列 */
   gap: 8px; /* 间距 */
   padding: 10px 12px; /* 内边距 */
   background: rgba(43, 45, 49, 0.85); /* 半透明深灰底（透明度由 JS 动态覆盖） */
-  border: 1px solid #7fc9c4; /* 青色描边 */
-  border-radius: 12px; /* 圆角 */
-  height: auto; /* 高度随内容自适应（原来是 calc(100% - 8px)） */
+  border-radius: 8px; /* 内衬圆角（与 shell 一致，深色区域统一） */
+  height: auto; /* 高度随内容自适应 */
   overflow: hidden; /* 隐藏溢出 */
-  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.35); /* 投影 */
-  transition: border-color 0.3s ease, background 0.3s ease, /* 描边/背景过渡 */
-              box-shadow 0.3s ease; /* 投影过渡 */
+  /* 不用外部 box-shadow：外阴影模糊扩散会形成比卡片更平缓的第二条弧线，
+     导致"外层弧"与卡片圆角弧度不一致；改用 inset 内阴影，只向内不产生外轮廓 */
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.12); /* 内阴影：轻微层次感，无外层弧 */
 }
-.overlay-card.mouse-toggle {
-  border-color: #f0a34a; /* 锁存激活：边框变橙 */
-  box-shadow: 0 8px 26px rgba(240, 163, 74, 0.25); /* 橙色光晕 */
+
+.overlay-shell.mouse-toggle {
+  box-shadow: inset 0 0 12px rgba(240, 163, 74, 0.25); /* 橙色内光晕（向内，无外层弧） */
 }
 
 .overlay-title {
