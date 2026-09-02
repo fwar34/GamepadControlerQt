@@ -32,6 +32,20 @@ function esc(s) {
 // $：按 id 获取 DOM 元素的简写
 function $(id) { return document.getElementById(id); }
 
+// 字段级更新辅助：值没变就不写 DOM，避免轮询渲染时无意义重绘导致文字闪烁
+function setText(id, v) { // 设置文本：相同则跳过
+  const el = $(id);
+  if (el.textContent !== v) el.textContent = v;
+}
+function setHTML(id, v) { // 设置 HTML：相同则跳过（避免重建 DOM 闪烁）
+  const el = $(id);
+  if (el.innerHTML !== v) el.innerHTML = v;
+}
+function setStyle(id, prop, v) { // 设置内联样式：相同则跳过
+  const el = $(id);
+  if (el.style[prop] !== v) el.style[prop] = v;
+}
+
 // ---------------------------------------------------------------------
 // 轮询
 // ---------------------------------------------------------------------
@@ -57,51 +71,46 @@ setInterval(tick, 50); // 每 50ms 轮询一次
 // 渲染
 // ---------------------------------------------------------------------
 function render(snap) {
-  // 标题
-  $('ov-set').textContent = '操作集: ' + esc(snap.set_name); // 当前操作集名称
-  $('ov-layer').textContent = '当前层: ' + esc(snap.layer_name); // 当前层名称
-  $('ov-toggle').textContent = expanded ? '收起' : '展开'; // 展开/收起按钮文案
+  // 标题（值相同则跳过，按键时不会闪）
+  setText('ov-set', '操作集: ' + esc(snap.set_name)); // 当前操作集名称
+  setText('ov-layer', '当前层: ' + esc(snap.layer_name)); // 当前层名称
+  setText('ov-toggle', expanded ? '收起' : '展开'); // 展开/收起按钮文案
 
   // 连接状态
-  $('ov-dot').className = 'dot ' + (snap.connected ? 'ok' : 'off'); // 状态圆点样式
-  $('ov-conn').textContent = snap.connected ? '手柄已连接' : '手柄未连接'; // 连接状态文字
+  const dotCls = 'dot ' + (snap.connected ? 'ok' : 'off'); // 状态圆点类名
+  if ($('ov-dot').className !== dotCls) $('ov-dot').className = dotCls; // 有变化才改
+  setText('ov-conn', snap.connected ? '手柄已连接' : '手柄未连接'); // 连接状态文字
 
-  // 按下按键
-  if (snap.pressed.length === 0) { // 无按键按下时
-    $('ov-pressed').innerHTML = '<span class="overlay-faint">无按键按下</span>'; // 显示提示
-  } else { // 有按键按下时
-    $('ov-pressed').innerHTML = snap.pressed.map((p) => // 为每个按下的按键生成 chip
-      '<span class="press-chip">' + esc(p) + '</span>'
-    ).join('');
-  }
+  // 按下按键（仅按键内容变化才重建 chips）
+  setHTML('ov-pressed', snap.pressed.length === 0
+    ? '<span class="overlay-faint">无按键按下</span>' // 无按键时显示提示
+    : snap.pressed.map((p) => '<span class="press-chip">' + esc(p) + '</span>').join(''));
 
   // L3 锁存警示（边框变橙 + 警示条）；类切换触发边框/光晕过渡动画
   const mouseToggle = !!snap.mouse_toggle; // 是否有鼠标长按锁存
-  $('ov-warn').style.display = mouseToggle ? 'block' : 'none'; // 显示/隐藏警示条
+  setStyle('ov-warn', 'display', mouseToggle ? 'block' : 'none'); // 显示/隐藏警示条
   $('overlay-shell').classList.toggle('mouse-toggle', mouseToggle); // 切换外框橙色光晕样式
 
   // 外框/卡片背景透明度跟随设置（透明度越低越透明，配合透明窗口）
   const op = typeof snap.opacity === 'number' ? snap.opacity : 0.85; // 取快照中的透明度，缺省 0.85
   const bg = 'rgba(43, 45, 49, ' + op + ')'; // 深色背景色（外框与卡片同色，深色区域统一）
-  document.body.style.background = bg; // body 兜底背景：覆盖窗口边缘缝隙，防止透明描边
-  $('overlay-shell').style.background = bg; // 外层容器背景（与卡片同色）
-  $('overlay-card').style.background = bg; // 内层卡片背景
+  if (document.body.style.background !== bg) document.body.style.background = bg; // body 兜底背景
+  setStyle('overlay-shell', 'background', bg); // 外层容器背景（与卡片同色）
+  setStyle('overlay-card', 'background', bg); // 内层卡片背景
 
   // 展开：映射列表
-  $('ov-mappings').style.display = expanded ? 'flex' : 'none'; // 展开时显示映射区（淡入由 opacity 控制）
+  setStyle('ov-mappings', 'display', expanded ? 'flex' : 'none'); // 展开时显示映射区
   if (expanded) { // 仅展开时渲染映射列表
-    $('ov-map-title').textContent = '当前层映射: ' + esc(snap.layer_name); // 映射列表标题
-    if (snap.mappings.length === 0) { // 无映射时
-      $('ov-map-list').innerHTML = '<span class="overlay-faint">（无映射）</span>'; // 显示空提示
-    } else { // 有映射时
-      $('ov-map-list').innerHTML = snap.mappings.map((m) => // 遍历每条映射生成行
+    setText('ov-map-title', '当前层映射: ' + esc(snap.layer_name)); // 映射列表标题
+    setHTML('ov-map-list', snap.mappings.length === 0 // 生成映射行（内容不变则跳过重建）
+      ? '<span class="overlay-faint">（无映射）</span>' // 无映射时显示空提示
+      : snap.mappings.map((m) => // 遍历每条映射生成行
         '<div class="overlay-row">' + // 一行容器
         '<span class="ov-acc' + (m.held ? ' held' : '') + '">' + esc(m.button) + '</span>' + // 手柄按键名（按住中变橙色）
         '<span class="ov-dim">→</span>' + // 箭头分隔
         '<span class="ov-text">' + esc(m.desc) + '</span>' + // 映射动作描述
         '</div>'
-      ).join('');
-    }
+      ).join(''));
   }
   fitHeight(); // 内容变化后贴合窗口高度（有守卫，高度没变不会重复 setSize）
 }

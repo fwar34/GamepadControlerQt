@@ -293,12 +293,6 @@ body::before {
   box-shadow: 0 3px 12px rgba(127, 201, 196, 0.3); /* 青色光晕 */
 }
 
-/* ---- 元素入场动画 ---- */
-@keyframes popIn {
-  from { opacity: 0; transform: translateY(4px) scale(0.98); } /* 起始：透明、下移并微缩 */
-  to   { opacity: 1; transform: none; } /* 结束：完全显示、归位 */
-}
-
 /* ---- 设置行 ---- */
 .slider-row {
   display: flex; /* 弹性布局 */
@@ -653,7 +647,6 @@ html.overlay-html {
   align-items: center; /* 垂直居中 */
   gap: 6px; /* 间距 */
   font-size: 13px; /* 字号 */
-  animation: popIn 0.2s ease-out; /* 入场动画 */
 }
 .overlay-dim { color: #a3a8b2; font-size: 13px; } /* 悬浮窗次要文字 */
 .overlay-faint { color: #6c727c; font-size: 13px; } /* 悬浮窗弱化文字 */
@@ -680,7 +673,7 @@ html.overlay-html {
   padding: 2px 8px; /* 内边距 */
   font-size: 13px; /* 字号 */
   font-weight: 600; /* 加粗 */
-  animation: popIn 0.16s ease-out; /* 入场动画 */
+  /* 不加入场动画：按键 chips 随轮询频繁重建，动画重放会在透明窗口上合成闪烁 */
   box-shadow: 0 2px 8px rgba(127, 201, 196, 0.35); /* 青色光晕 */
 }
 
