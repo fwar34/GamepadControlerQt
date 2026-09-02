@@ -25,7 +25,7 @@ use std::sync::{Arc, Mutex}; // Arc（引用计数共享所有权）+ Mutex（�
 use tauri::Manager; // Tauri 的 Manager trait：提供 state() / get_webview_window() 等实例方法
 use windows::Win32::Foundation::{GetLastError, ERROR_ALREADY_EXISTS}; // Windows API：获取最近错误码 + "已存在"错误常量
 use windows::Win32::System::Threading::CreateMutexW; // Windows API：创建命名互斥体，用于单实例检测
-use windows::Win32::UI::WindowsAndMessaging::{FindWindowW, SetForegroundWindow, ShowWindow, SW_RESTORE}; // Windows API：查找窗口、置顶聚焦、控制显隐
+use windows::Win32::UI::WindowsAndMessaging::{FindWindowW, MrmPlatformVersion_Windows10_0_0_0, SW_RESTORE, SetForegroundWindow, ShowWindow}; // Windows API：查找窗口、置顶聚焦、控制显隐
 
 /// 已有实例运行时聚焦其主窗口（按主窗口标题查找并恢复/置顶）
 // 【Rust 语法】fn 定义函数：无参数、无返回值；调用 Windows 原生 API（FFI）是不安全操作，必须放在 unsafe 块中
@@ -117,9 +117,21 @@ fn main() { // 程序主入口
             commands::set_mapping, // 写入按键映射
             commands::clear_mapping, // 清空按键映射
             commands::toggle_sub, // 切换子命令
+            commands::open_app, // 打开应用
         ]) // 命令数组宏结束
         // 【Rust 语法】闭包：|app| 为参数列表；在应用初始化完成后、运行前回调，用于创建额外窗口
-        .setup(|app| { // setup 钩子：创建悬浮窗
+        .setup(|app| { 
+            // 主窗口关闭时改为隐藏而非销毁，保证 open_app 可以重新拉起
+            if let Some(main_win) = app.get_webview_window("main") {
+                let win = main_win.clone(); // 闭包内 move 的副本
+                main_win.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        win.hide().unwrap();
+                    }
+                });
+            }
+            // setup 钩子：创建悬浮窗
             // 悬浮窗：无边框透明置顶小窗，默认隐藏；前端 overlay.html 负责渲染
             let _overlay = tauri::WebviewWindowBuilder::new( // 创建 Webview 窗口构建器（_ 前缀避免未使用警告）
                 app, // 传入应用句柄
@@ -127,7 +139,7 @@ fn main() { // 程序主入口
                 tauri::WebviewUrl::App("overlay.html".into()), // 加载前端打包资源中的 overlay.html
             ) // WebviewWindowBuilder::new 调用结束
             .title("手柄悬浮窗") // 设置窗口标题
-            .inner_size(320.0, 220.0) // 设置窗口内部尺寸为 320x220
+            .inner_size(340.0, 220.0) // 设置窗口内部尺寸为 320x220
             .resizable(false) // 禁止窗口缩放
             .decorations(false) // 无系统边框与标题栏
             .transparent(true) // 启用窗口透明背景

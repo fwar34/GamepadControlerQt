@@ -594,3 +594,14 @@ pub fn toggle_sub(state: State<'_, AppState>, layer_id: String, button: String, 
         core.profile_rev += 1; // 配置版本号自增
     } // 外层 if-let 结束
 } // 函数结束
+
+// 
+#[tauri::command]
+pub fn open_app(app: AppHandle, _: State<'_, AppState>) {
+    // 【Rust 语法】let-else 语句：取到 overlay 窗口则绑定 win，否则走 else 分支
+    let Some(win) = app.get_webview_window("main") else { // 按标签查找 main 窗口
+        return; // 窗口不存在则返回
+    }; // let-else 结束
+    win.show().unwrap(); // 显示窗口
+    win.set_focus().unwrap(); // 设置焦点
+}

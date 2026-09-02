@@ -14,10 +14,11 @@ const { getCurrentWindow, LogicalSize } = window.__TAURI__.window;
 // ---------------------------------------------------------------------
 let expanded = false; // 悬浮窗是否处于展开状态
 let prevKey = null; // 上一次渲染内容对比串，避免重复渲染
+let lastFitH = 0; // 上次贴合高度，高度没变就不 setSize，避免频繁调整
 
-const COLLAPSED_H = 220; // 收起状态窗口高度
-const EXPANDED_H = 480; // 展开状态窗口高度
-const W = 320; // 悬浮窗固定宽度
+const MIN_H = 130; // 收起最小高度（贴合收起内容，不再留大片透明）
+const MAX_H = 480; // 展开最大高度（超过则映射区内部滚动）
+const W = 340;     // 悬浮窗固定宽度
 
 // ---------------------------------------------------------------------
 // 工具
@@ -84,7 +85,7 @@ function render(snap) {
   $('overlay-card').style.background = 'rgba(43, 45, 49, ' + op + ')'; // 应用半透明背景
 
   // 展开：映射列表
-  $('ov-mappings').style.display = expanded ? 'flex' : 'none'; // 展开时显示映射列表
+  $('ov-mappings').style.display = expanded ? 'flex' : 'none'; // 展开时显示映射区（淡入由 opacity 控制）
   if (expanded) { // 仅展开时渲染映射列表
     $('ov-map-title').textContent = '当前层映射: ' + esc(snap.layer_name); // 映射列表标题
     if (snap.mappings.length === 0) { // 无映射时
@@ -99,22 +100,32 @@ function render(snap) {
       ).join('');
     }
   }
+  fitHeight(); // 内容变化后贴合窗口高度（有守卫，高度没变不会重复 setSize）
+}
+
+async function fitHeight() {
+  await new Promise((r) => requestAnimationFrame(r)); // 等布局完成再测量
+  const card = $('overlay-card');
+  const h = card.offsetHeight + 8; // 卡片高 + 上下 margin（4px*2），最准确
+  const target = Math.max(MIN_H, Math.min(h, MAX_H)); // 夹在上下限之间
+  if (target === lastFitH) return; // 高度没变则跳过
+  lastFitH = target;               // 记录本次高度
+  await getCurrentWindow().setSize(new LogicalSize(W, target));
 }
 
 // ---------------------------------------------------------------------
 // 展开 / 收起（同时调整窗口大小）
 // ---------------------------------------------------------------------
 async function setExpanded(v) {
-  expanded = v; // 更新展开状态
-  const win = getCurrentWindow(); // 获取本窗口
-  await win.setSize(new LogicalSize(W, expanded ? EXPANDED_H : COLLAPSED_H)); // 按展开状态调整窗口高度
-  prevKey = null; // 强制下一轮重新渲染
+  expanded = v;             // 更新展开状态
+  prevKey = null;           // 强制重绘
+  $('ov-mappings').style.opacity = '0'; // 先隐藏映射区（仍占位，可测量高度）
   try {
-    const snap = await invoke('get_overlay_snapshot'); // 重新获取快照
-    render(snap); // 立即重绘（无需等下一轮轮询）
-  } catch (e) {
-    console.error('overlay render:', e); // 出错打印日志
-  }
+    const snap = await invoke('get_overlay_snapshot'); // 获取快照
+    render(snap);           // 渲染内容（占位，参与布局）
+  } catch (e) { console.error('overlay render:', e); }
+  await fitHeight();        // 一次性调整到实际内容高度，避免"先拉高再收缩"的底部透明截
+  if (expanded) $('ov-mappings').style.opacity = '1'; // 窗口到位后淡入
 }
 
 // ---------------------------------------------------------------------
@@ -128,4 +139,9 @@ $('ov-toggle').addEventListener('click', (e) => { // 展开/收起按钮
 $('ov-title').addEventListener('click', (e) => { // 标题行点击
   if (e.target === $('ov-toggle')) return; // 点的是展开按钮则跳过（避免重复）
   setExpanded(!expanded); // 切换展开状态
+});
+
+$('openApp').addEventListener('click', (e) => {
+  e.stopPropagation(); // 阻止事件冒泡到标题，避免重复触发
+  invoke('open_app'); // 打开应用
 });

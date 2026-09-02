@@ -553,8 +553,9 @@ body::before {
    悬浮窗（透明背景）
    ===================================================================== */
 body.overlay-body {
-  background: transparent; /* 悬浮窗 body 透明背景 */
-  overflow: hidden; /* 隐藏滚动 */
+  margin: 0;               /* 去掉默认 8px margin，消除底部透明带 */
+  background: transparent;
+  overflow: hidden;
 }
 
 /* 悬浮窗页面：html 根元素也须透明，否则整个窗口是不透明深色矩形，
@@ -572,7 +573,7 @@ html.overlay-html {
   background: rgba(43, 45, 49, 0.85); /* 半透明深灰底（透明度由 JS 动态覆盖） */
   border: 1px solid #7fc9c4; /* 青色描边 */
   border-radius: 12px; /* 圆角 */
-  height: calc(100% - 8px); /* 高度扣除上下边距 */
+  height: auto; /* 高度随内容自适应（原来是 calc(100% - 8px)） */
   overflow: hidden; /* 隐藏溢出 */
   box-shadow: 0 8px 26px rgba(0, 0, 0, 0.35); /* 投影 */
   transition: border-color 0.3s ease, background 0.3s ease, /* 描边/背景过渡 */
@@ -595,10 +596,10 @@ html.overlay-html {
 .ov-set { font-size: 15px; color: #7fc9c4; font-weight: 600; white-space: nowrap; } /* 操作集名：青色加粗 */
 .ov-layer { font-size: 15px; color: #e8eaee; white-space: nowrap; } /* 当前层名 */
 .ov-toggle {
-  margin-left: auto; /* 靠右对齐 */
+  /* margin-left: auto; 靠右对齐 */
   background: #33363b; /* 深灰底 */
   border: 1px solid #3f434a; /* 描边 */
-  color: #e8eaee; /* 文字颜色 */
+  color: #e8eaa1; /* 文字颜色 */
   border-radius: 6px; /* 圆角 */
   padding: 2px 8px; /* 内边距 */
   cursor: pointer; /* 手型光标 */
@@ -611,6 +612,27 @@ html.overlay-html {
 }
 .ov-toggle:hover { border-color: #7fc9c4; transform: translateY(-1px); } /* 悬停描边变青并上浮 */
 .ov-toggle:active { transform: translateY(0) scale(0.96); } /* 按下微缩 */
+
+.ov-open {
+  margin-right: auto;
+  display: inline-flex; /* 行内弹性布局 */
+  align-items: center; /* 垂直居中 */
+  justify-content: center; /* 水平居中 */
+  background: #33363b;  /* 深灰底 */
+  border: 1px solid #7fc9c4; /* 描边 */
+  color: #7fc9c4; /* 文字颜色 */
+  border-radius: 6px; /* 圆角 */
+  padding: 2px 8px; /* 内边距 */
+  cursor: pointer; /* 手型光标 */
+  font-family: inherit; /* 继承字体 */
+  font-size: 12px; /* 字号 */
+  position: relative; /* 相对定位（波纹基准） */
+  overflow: hidden; /* 裁剪波纹 */
+  transition: background 0.16s ease, border-color 0.16s ease, /* 背景/描边过渡 */
+              transform 0.12s ease; /* 位移过渡 */
+}
+.ov-open:hover { border-color: #7fc9c4; transform: translateY(-1px); } /* 悬停描边变青并上浮 */
+.ov-open:active { transform: translateY(0) scale(0.96); } /* 按下微缩 */
 
 .overlay-row {
   display: flex; /* 弹性布局 */
@@ -666,11 +688,13 @@ html.overlay-html {
 }
 
 #ov-mappings {
-  display: flex; /* 弹性布局 */
-  flex-direction: column; /* 垂直排列 */
-  gap: 4px; /* 间距 */
-  overflow-y: auto; /* 超出滚动 */
-  flex: 1; /* 占满剩余高度 */
-  animation: viewIn 0.24s ease-out; /* 展开入场动画 */
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 240px; /* 展开区最高 240，超出内部滚动 */
+  overflow-y: auto;
+  flex: none;        /* 不拉伸，按内容高度 */
+  opacity: 0;        /* 默认透明，由 setExpanded 控制淡入（避免底部透明截闪现） */
+  transition: opacity 0.2s ease; /* 淡入过渡 */
 }
 #ov-map-list { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; } /* 映射列表：垂直排列可滚动 */
