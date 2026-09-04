@@ -11,7 +11,16 @@
   <div class="root help-view"> <!-- 根容器：复用 root 布局，允许滚动 -->
     <div class="edit-header"> <!-- 编辑窗口头部 -->
       <div class="edit-title" id="edit-title">编辑层: --</div> <!-- 当前编辑的层名（edit.js 动态刷新） -->
+      <button class="btn" id="edit-rename-layer">重命名层</button> <!-- 重命名层按钮，点击后显示重命名输入行（edit.js） -->
       <button class="btn" id="edit-close">关闭</button> <!-- 关闭本窗口按钮 -->
+    </div>
+
+    <!-- 重命名 / 复制输入行（默认隐藏，由 main.js 的 renderRenameRow 控制显示） -->
+    <div id="rename-layer-row" class="rename-row" style="display:none">
+      <span id="rename-layer-hint" class="dim">重命名操作集</span> <!-- 提示文字（重命名/复制） -->
+      <input id="rename-layer-input" class="rename-input" placeholder="输入名称" autocomplete="off"> <!-- 名称输入框 -->
+      <button class="btn" id="rename-layer-ok">确定</button> <!-- 确认按钮 -->
+      <button class="btn" id="rename-layer-cancel">取消</button> <!-- 取消按钮 -->
     </div>
 
     <div class="edit-body"> <!-- 编辑区两栏布局 -->

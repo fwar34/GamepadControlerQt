@@ -609,3 +609,11 @@ pub fn open_app(app: AppHandle, _: State<'_, AppState>) {
     win.show().unwrap(); // 显示窗口
     win.set_focus().unwrap(); // 设置焦点
 }
+
+#[tauri::command]
+pub fn rename_layer(state: State<'_, AppState>, layer_id: String, layer_name: String) {
+    let mut core = state.shared.core.lock().unwrap();
+    let layer = find_layer_mut(&mut core.steam.profile, &layer_id).unwrap();
+    layer.name = layer_name;
+    core.profile_rev += 1;
+}

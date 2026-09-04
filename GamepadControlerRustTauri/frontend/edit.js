@@ -112,6 +112,9 @@ let editLayerId = decodeURIComponent(location.hash.replace(/^#/, '')) || 'Common
 let selectedButton = 'A'; // 当前选中的手柄按键
 let editKind = 'keyboard'; // 当前选中的动作类型
 let prevEdit = null; // 上一次渲染内容对比串，避免重复渲染
+let renameLayerMode = false; // 是否正在重命名操作集
+let renameLayerId = null; // 当前重命名的操作集 id
+let renameLayerValue = ''; // 当前重命名的名称值
 
 // 主窗口复用本窗口并切换目标层时，通过事件推送新的层 id
 listen('edit-layer', (e) => { // 注册 edit-layer 事件监听
@@ -247,11 +250,46 @@ const App = {
     invoke('toggle_sub', { layerId: editLayerId, button: selectedButton, keyCode: code });
   },
   close() { getCurrentWindow().close(); }, // 关闭本窗口
+  renameLayer() {
+    renameLayerMode = true; // 标记为重命名模式
+    renameLayerId = editLayerId; // 记录要重命名的操作层
+    renderRenameLayerRow(); // 显示输入行
+    $('rename-layer-input').focus(); // 聚焦输入框
+  },
+  renameLayerOk() {
+    invoke('rename_layer', {layerId: renameLayerId, layerName: $('rename-layer-input').value})
+    this.renameLayerCancel();
+  },
+  renameLayerCancel() {
+    renameLayerMode = false; // 取消重命名模式
+    renameLayerValue = ''; // 清空输入值
+    renderRenameLayerRow();
+  },
 };
+
+// renderRenameLayerRow：根据 renameLayerMode 决定重命名输入行的显示与内容
+function renderRenameLayerRow() {
+  const rr = $('rename-layer-row'); // 输入行容器
+  if (renameLayerMode) { // 处于重命名模式时显示
+    rr.style.display = 'flex'; // 显示输入行
+    $('rename-layer-hint').textContent = '重命名操作层'; // 提示文字
+    const inp = $('rename-layer-input'); // 输入框
+    if (document.activeElement !== inp) inp.value = renameLayerValue; // 输入框未被聚焦时才回填，避免覆盖正在输入的内容
+  } else {
+    rr.classList.add('hide');
+    setTimeout(() => {
+      rr.style.display = 'none'; // 非编辑模式隐藏输入行
+      rr.classList.remove('hide');
+    }, 220);
+  }
+}
 
 // ---------------------------------------------------------------------
 // 静态按钮绑定 + 点击波纹
 // ---------------------------------------------------------------------
+$('edit-rename-layer').addEventListener('click', () => App.renameLayer()); // 重命名层按钮，点击后显示重命名输入行
+$('rename-layer-ok').addEventListener('click', () => App.renameLayerOk()); // 确认重命名按钮，点击后提交重命名请求
+$('rename-layer-cancel').addEventListener('click', () => App.renameLayerCancel()); // 取消重命名按钮，点击后隐藏输入行
 $('edit-close').addEventListener('click', () => App.close()); // 关闭按钮
 $('edit-clear').addEventListener('click', () => App.clearMapping()); // 清除映射按钮
 

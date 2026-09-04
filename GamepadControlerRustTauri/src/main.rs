@@ -118,19 +118,10 @@ fn main() { // 程序主入口
             commands::clear_mapping, // 清空按键映射
             commands::toggle_sub, // 切换子命令
             commands::open_app, // 打开应用
+            commands::rename_layer, // 重命名层集
         ]) // 命令数组宏结束
         // 【Rust 语法】闭包：|app| 为参数列表；在应用初始化完成后、运行前回调，用于创建额外窗口
         .setup(|app| { 
-            // 主窗口关闭时改为隐藏而非销毁，保证 open_app 可以重新拉起
-            if let Some(main_win) = app.get_webview_window("main") {
-                let win = main_win.clone(); // 闭包内 move 的副本
-                main_win.on_window_event(move |event| {
-                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                        api.prevent_close();
-                        win.hide().unwrap();
-                    }
-                });
-            }
             // setup 钩子：创建悬浮窗
             // 悬浮窗：无边框透明置顶小窗，默认隐藏；前端 overlay.html 负责渲染（圆角由 CSS 实现）
             let _overlay = tauri::WebviewWindowBuilder::new( // 创建 Webview 窗口构建器（句柄无需使用，前缀 _ 避免未用警告）
@@ -155,18 +146,25 @@ fn main() { // 程序主入口
         .expect("error while running tauri application") // 构建失败则崩溃并提示错误
         // 【Rust 语法】闭包：参数 app_handle（应用句柄）与 event（运行事件枚举）
         .run(|app_handle, event| { // 启动应用事件循环
-            // 应用退出前：停止映射释放全部注入（防止卡键）+ 自动保存配置文件
-            // 【Rust 语法】if-let 匹配枚举：仅当事件为 RunEvent::Exit 退出事件时进入分支
-            if let tauri::RunEvent::Exit = event { // 捕获应用退出事件
-                let state = app_handle.state::<AppState>(); // 从应用句柄取回 manage 注入的 AppState
-                state.shared.stop_mapping(); // 释放所有按键注入，防止卡键
-                // 【Rust 语法】块表达式：块内最后一行作为值赋给 profile
-                let profile = { // 取当前配置快照
-                    // 【Rust 语法】unwrap()：从 Result 取出 Ok 值，Err（锁中毒）则 panic
-                    let core = state.shared.core.lock().unwrap(); // 对核心加锁
-                    core.steam.profile.clone() // 取当前配置快照
-                }; // 块结束，profile 拿到配置副本（此处锁已释放）
-                core::config_manager::save(&profile); // 自动保存到配置文件
-            } // if-let 结束
+            // 【Rust 语法】match 匹配枚举：主窗口点 X → 退出整个程序；应用退出 → 清理
+            match event {
+                // 主窗口点 X：exit(0) 会销毁包括 overlay 在内的所有窗口 →
+                // 窗口表清空 → 触发 ExitRequested → Exit（下方清理分支照常执行）
+                tauri::RunEvent::WindowEvent { label, event: tauri::WindowEvent::CloseRequested { .. }, .. } if label == "main" => {
+                    app_handle.exit(0); // 以退出码 0 结束整个应用事件循环
+                }
+                tauri::RunEvent::Exit => { // 应用退出前：停止映射释放全部注入（防止卡键）+ 自动保存配置文件
+                    let state = app_handle.state::<AppState>(); // 从应用句柄取回 manage 注入的 AppState
+                    state.shared.stop_mapping(); // 释放所有按键注入，防止卡键
+                    // 【Rust 语法】块表达式：块内最后一行作为值赋给 profile
+                    let profile = { // 取当前配置快照
+                        // 【Rust 语法】unwrap()：从 Result 取出 Ok 值，Err（锁中毒）则 panic
+                        let core = state.shared.core.lock().unwrap(); // 对核心加锁
+                        core.steam.profile.clone() // 取当前配置快照
+                    }; // 块结束，profile 拿到配置副本（此处锁已释放）
+                    core::config_manager::save(&profile); // 自动保存到配置文件
+                }
+                _ => {} // 其余运行事件不处理
+            } // match 结束
         }); // run 调用与闭包结束
 } // main 函数结束

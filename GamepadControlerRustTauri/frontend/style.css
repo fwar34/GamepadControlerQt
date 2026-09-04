@@ -64,6 +64,11 @@ body::before {
   from { opacity: 0; transform: translateY(8px); } /* 起始：透明且下移 8px */
   to   { opacity: 1; transform: none; } /* 结束：完全显示、归位 */
 }
+/* viewOut：淡出 + 轻微下浮的出场动画 */
+@keyframes viewOut {
+  from { opacity: 1; transform: none; } /* 起始：完全显示、归位 */
+  to   { opacity: 0; transform: translateY(8px); } /* 结束：透明且下移 8px */
+}
 
 /* 顶部标题栏容器 */
 .header {
@@ -398,6 +403,9 @@ body::before {
   gap: 8px; /* 间距 */
   flex-shrink: 0; /* 不允许压缩 */
   animation: viewIn 0.22s ease-out; /* 入场动画 */
+}
+.rename-row.hide {
+  animation: viewOut 0.22s ease-in forwards; /* 出场动画 */
 }
 .rename-input {
   flex: 1; /* 输入框占满剩余宽度 */
