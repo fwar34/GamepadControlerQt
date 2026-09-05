@@ -175,7 +175,7 @@ function renderEdit(info, map) {
   ).join('');
 
   // 目标区
-  $('edit-target').innerHTML = targetHTML(info); // 按动作类型渲染目标选择区
+  $('edit-target').innerHTML = targetHTML(info, map); // 按动作类型渲染目标选择区
 
   // 子命令（仅键盘动作提供，且只列特殊功能按键；其余动作类型不提供子命令）
   const showSubs = editKind === 'keyboard'; // 是否显示子命令区
@@ -193,23 +193,26 @@ function renderEdit(info, map) {
 }
 
 // targetHTML：根据当前动作类型返回目标选择区 HTML
-function targetHTML(info) {
+function targetHTML(info, map) {
   if (editKind === 'keyboard') { // 键盘动作 → 显示按键选择
     return '<div class="dim">选择按键</div><div class="chips-row">' +
       COMMON_KEYS.map(([code, label]) => // 遍历按键生成 chip
-        '<div class="chip" onclick="App.setKey(' + code + ')">' + label + '</div>' // 点击设置键盘映射（数字实参）
+        '<div class="chip ' + (code === map.key_code ? ' active' : '') + '" ' + // 当前按键加 active 高亮
+        'onclick="App.setKey(' + code + ')">' + label + '</div>' // 点击设置键盘映射（数字实参）
       ).join('') + '</div>';
   }
   if (editKind === 'mouse' || editKind === 'mousetoggle') { // 鼠标动作 → 显示鼠标键选择
     return '<div class="dim">选择鼠标键</div><div class="chips-row">' +
       MOUSE_BUTTONS.map(([name, label]) => // 遍历鼠标键生成 chip
-        '<div class="chip" onclick="App.setMouse(' + q(name) + ')">' + label + '</div>' // 点击设置鼠标映射（单引号实参）
+        '<div class="chip' + (name.toLowerCase() === map.mouse_button?.toLowerCase() ? ' active' : '') + '" ' + // 当前鼠标键加 active 高亮
+        'onclick="App.setMouse(' + q(name) + ')">' + label + '</div>' // 点击设置鼠标映射（单引号实参）
       ).join('') + '</div>';
   }
   if (editKind === 'switchlayer') { // 切层动作 → 显示目标层选择
     return '<div class="dim">选择目标层</div><div class="chips-row">' +
       info.switch_targets.map((t) => // 遍历可切换的目标层生成 chip
-        '<div class="chip" onclick="App.setLayer(' + q(t.name) + ')">' + esc(t.display) + '</div>' // 点击设置切层映射
+        '<div class="chip' + (t.name.toLowerCase() === map.layer_name?.toLowerCase() ? ' active' : '') + '" ' + // 当前目标层加 active 高亮
+        'onclick="App.setLayer(' + q(t.name) + ')">' + esc(t.display) + '</div>' // 点击设置切层映射
       ).join('') + '</div>';
   }
   return '<div class="faint">该动作无需额外目标，点击上方类型即生效</div>'; // 无需目标的动作提示

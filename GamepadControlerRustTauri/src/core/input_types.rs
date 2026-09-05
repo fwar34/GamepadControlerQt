@@ -162,7 +162,7 @@ pub enum ControllerStick {
 
 // 鼠标按键（名称用大写，与安卓版枚举名一致，保证配置文件兼容）
 // 【Rust 语法】#[derive(...)]：为鼠标按键枚举派生 Debug / Clone / Copy / PartialEq / Eq / Hash
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
 pub enum MouseButton {
     Left, // 鼠标左键
     Right, // 鼠标右键

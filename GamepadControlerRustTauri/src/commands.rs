@@ -108,10 +108,13 @@ pub struct LayerEditSnapshot { // 层编辑页整体快照
 // 【Rust 语法】derive 派生宏：自动实现 Serialize（序列化）trait
 #[derive(Serialize)]
 pub struct MappingView { // 单个按键映射的展示视图
+    key_code: i32, // 键盘键码（存储 Android KeyCode 常量，运行时再转换为 Windows 虚拟键码）
     kind: String, // 动作类型字符串（keyboard / mouse / ...）
     desc: String, // 动作描述
     subs: Vec<String>, // 子命令键码（组合键）列表
     has_mapping: bool, // 是否已有映射
+    mouse_button: Option<MouseButton>, // 鼠标键（Some 表示有，None 表示无）
+    layer_name: Option<String>, // 目标层名称（切换层动作时使用）
 } // 结构体结束
 
 // 【Rust 语法】impl 实现块：为结构体添加关联方法，通过 MappingView::none() 调用（无需实例）
@@ -119,10 +122,13 @@ impl MappingView {
     // 【Rust 语法】关联函数 + Self 返回类型：不接收 self 参数，Self 即 MappingView 自身类型
     fn none() -> Self { // 构造一个"无映射"占位视图
         Self { // 结构体字面量初始化
+            key_code: 0, // 无映射的键码为 0
             kind: "keyboard".into(), // 【Rust 语法】.into() 类型转换：把 &str 字面量转换为 String
             desc: "（无映射）".into(), // 空映射的描述文本
             subs: Vec::new(), // 空子命令列表
             has_mapping: false, // 标记为无映射
+            mouse_button: None, // 无鼠标键
+            layer_name: None, // 无目标层名称
         } // Self 字面量结束
     } // none 函数结束
 } // impl 块结束
@@ -503,10 +509,13 @@ pub fn get_mapping(state: State<'_, AppState>, layer_id: String, button: String)
     }; // let-else 结束
     match layer.get_mapping(b) { // 【Rust 语法】match 匹配 Option：按该按钮的映射结果分支
         Some(m) => MappingView { // 有映射则构造视图
+            key_code: m.action.key_code, // 键盘键码（存储 Android KeyCode 常量，运行时再转换为 Windows 虚拟键码）
             kind: kind_str(&m.action), // 动作类型字符串
             desc: describe_action(&m.action), // 动作描述
             subs: m.sub_commands.iter().map(|&k| key_code_to_name(k)).collect(), // 【Rust 语法】闭包 |&k| 解构引用；子命令键码转名称
             has_mapping: true, // 标记有映射
+            mouse_button: Some(m.action.mouse_button), // 鼠标键（Some 表示有，None 表示无）
+            layer_name: m.action.layer_name.clone(), // 目标层名称（切换层动作时使用）
         }, // 视图构造结束
         None => MappingView::none(), // 无映射则返回空视图
     } // match 结束
