@@ -570,18 +570,8 @@ html.overlay-html {
   background: transparent; /* 悬浮窗 html 根元素透明 */
 }
 
-/* 外层容器：深色背景层。8px 深色间距围绕卡片（与卡片同色，无描边）；
-   圆角由 body 的 CSS 圆角统一裁剪，此处不设圆角，避免圆角层叠 */
-.overlay-shell {
-  margin: 0; /* 铺满窗口，无透明带 */
-  padding: 8px; /* 深色间距：环绕卡片四周 */
-  background: rgba(43, 45, 49, 0.85); /* 与卡片同色（透明度由 JS 覆盖） */
-  overflow: hidden; /* 裁剪子元素溢出（同时阻止外边距塌陷） */
-  transition: box-shadow 0.3s ease; /* 光晕过渡 */
-}
-
 .overlay-card {
-  margin: 0; /* 铺满外框内部（与 shell 同边界） */
+  margin: 0; /* 铺满窗口（与 body 同界） */
   display: flex; /* 弹性布局 */
   flex-direction: column; /* 垂直排列 */
   gap: 8px; /* 间距 */
@@ -594,9 +584,8 @@ html.overlay-html {
      导致"外层弧"与卡片圆角弧度不一致；改用 inset 内阴影，只向内不产生外轮廓 */
   box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.12); /* 内阴影：轻微层次感，无外层弧 */
 }
-
-.overlay-shell.mouse-toggle {
-  box-shadow: inset 0 0 12px rgba(240, 163, 74, 0.25); /* 橙色内光晕（向内，无外层弧） */
+.overlay-card.mouse-toggle {
+  box-shadow: inset 0 0 12px rgba(240, 163, 74, 0.25); /* 锁存时橙色内光晕（向内，无外层弧） */
 }
 
 .overlay-title {
@@ -607,9 +596,11 @@ html.overlay-html {
   cursor: move; /* 移动光标（配合拖动区域） */
   user-select: none; /* 禁止选中文本 */
   flex-shrink: 0; /* 不允许压缩 */
+  /* 不设 overflow:hidden：否则会裁剪按钮 hover 上浮的顶部 1px；
+     按钮文字换行已由 nowrap + flex-shrink:0 解决 */
 }
-.ov-set { font-size: 15px; color: #7fc9c4; font-weight: 600; white-space: nowrap; } /* 操作集名：青色加粗 */
-.ov-layer { font-size: 15px; color: #e8eaee; white-space: nowrap; } /* 当前层名 */
+.ov-set { font-size: 15px; color: #7fc9c4; font-weight: 600; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; } /* 操作集名：青色加粗，过长可收缩省略 */
+.ov-layer { font-size: 15px; color: #e8eaee; white-space: nowrap; flex-shrink: 0; } /* 当前层名：不收缩 */
 .ov-toggle {
   /* margin-left: auto; 靠右对齐 */
   background: #33363b; /* 深灰底 */
@@ -620,6 +611,8 @@ html.overlay-html {
   cursor: pointer; /* 手型光标 */
   font-family: inherit; /* 继承字体 */
   font-size: 12px; /* 字号 */
+  white-space: nowrap; /* 按钮文字不换行 */
+  flex-shrink: 0; /* 不被压缩 */
   position: relative; /* 相对定位（波纹基准） */
   overflow: hidden; /* 裁剪波纹 */
   transition: background 0.16s ease, border-color 0.16s ease, /* 背景/描边过渡 */
@@ -641,6 +634,8 @@ html.overlay-html {
   cursor: pointer; /* 手型光标 */
   font-family: inherit; /* 继承字体 */
   font-size: 12px; /* 字号 */
+  white-space: nowrap; /* 按钮文字不换行 */
+  flex-shrink: 0; /* 不被压缩 */
   position: relative; /* 相对定位（波纹基准） */
   overflow: hidden; /* 裁剪波纹 */
   transition: background 0.16s ease, border-color 0.16s ease, /* 背景/描边过渡 */
@@ -655,22 +650,26 @@ html.overlay-html {
   align-items: center; /* 垂直居中 */
   gap: 6px; /* 间距 */
   font-size: 13px; /* 字号 */
+  height: 22px; /* 固定行高：映射行与占位行等高，保证切层后展开高度不变 */
+  flex-shrink: 0; /* 不允许压缩 */
 }
 .overlay-dim { color: #a3a8b2; font-size: 13px; } /* 悬浮窗次要文字 */
 .overlay-faint { color: #6c727c; font-size: 13px; } /* 悬浮窗弱化文字 */
 .ov-acc { color: #7fc9c4; font-size: 13px; flex-shrink: 0; } /* 按键名：青色 */
 .ov-acc.held { color: #f0a34a; } /* 按键按住中：橙色 */
 .ov-dim { color: #a3a8b2; font-size: 13px; } /* 箭头分隔颜色 */
-.ov-text { color: #e8eaee; font-size: 13px; } /* 映射描述颜色 */
+.ov-text { color: #e8eaee; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; } /* 映射描述：单行超长省略，保证行高恒定 */
+.ov-pad { visibility: hidden; } /* 占位行：不可见但撑高，切层后展开高度保持固定 */
 
 .overlay-pressed {
   display: flex; /* 弹性布局 */
   flex-direction: row; /* 水平排列 */
   flex-wrap: wrap; /* 允许换行 */
   gap: 6px; /* 间距 */
-  /* 固定最小高度与 press-chip 一致，按下/无按下时高度不跳变，
-     避免每次按键把下方映射列表往下挤 */
-  min-height: 24px; /* 最小高度 */
+  /* 固定高度与 press-chip 一致：无论按多少键都不撑高卡片（换行超出部分裁剪），
+     避免每次按键触发 fitHeight 调整悬浮窗高度 */
+  height: 24px; /* 固定高度（容纳单行 chips） */
+  overflow: hidden; /* 多按键换行超出部分隐藏 */
   align-items: center; /* 垂直居中 */
 }
 
@@ -683,6 +682,14 @@ html.overlay-html {
   font-weight: 600; /* 加粗 */
   /* 不加入场动画：按键 chips 随轮询频繁重建，动画重放会在透明窗口上合成闪烁 */
   box-shadow: 0 2px 8px rgba(127, 201, 196, 0.35); /* 青色光晕 */
+}
+
+#ov-warn {
+  height: 28px; /* 固定高度：锁存警示出现/消失不改变悬浮窗高度（内容切换由 JS 处理） */
+  display: flex;
+  align-items: center;
+  /* 不设 overflow:hidden：否则会裁剪 warnShake 抖动动画左移的 4px；
+     高度已由 height 固定，不会因内容被撑高 */
 }
 
 .overlay-warn {
@@ -705,11 +712,9 @@ html.overlay-html {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-height: 240px; /* 展开区最高 240，超出内部滚动 */
-  overflow-y: auto;
   flex: none;        /* 不拉伸，按内容高度 */
   opacity: 0;        /* 默认透明，由 setExpanded 控制淡入（避免底部透明截闪现） */
   transform: translateY(10px) scale(0.98); /* 收起态下移+微缩，配合展开/收起滑入滑出 */
   transition: opacity 0.2s ease, transform 0.2s ease; /* 展开/收起淡入淡出 + 滑入滑出（快速不拖沓） */
 }
-#ov-map-list { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; } /* 映射列表：垂直排列可滚动 */
+#ov-map-list { display: flex; flex-direction: column; gap: 2px; } /* 映射列表：垂直排列（高度随内容自适应，窗口高度由 overlay.js 贴合，无滚动） */

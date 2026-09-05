@@ -19,7 +19,7 @@ let animating = false; // 展开/收起高度动画进行中，fitHeight 跳过�
 let collapsing = false; // 收起动画中：映射区由 setExpanded 控制 display，render 跳过避免截断淡出
 
 const MIN_H = 60;  // 收起最小高度（防御下限；实际由 fitHeight 精确贴合卡片，四边透明带均为 4px）
-const MAX_H = 480; // 展开最大高度（超过则映射区内部滚动）
+const MAX_H = 900; // 展开最大高度（内容完整显示的防御上限；悬浮窗高度随内容自适应，不裁剪）
 const W = 340;     // 悬浮窗固定宽度
 
 // ---------------------------------------------------------------------
@@ -88,32 +88,38 @@ function render(snap) {
     ? '<span class="overlay-faint">无按键按下</span>' // 无按键时显示提示
     : snap.pressed.map((p) => '<span class="press-chip">' + esc(p) + '</span>').join(''));
 
-  // L3 锁存警示（边框变橙 + 警示条）；类切换触发边框/光晕过渡动画
+  // L3 锁存警示（边框变橙 + 警示条）；ov-warn 固定高度占位，锁存切换只换内容不改变悬浮窗高度
   const mouseToggle = !!snap.mouse_toggle; // 是否有鼠标长按锁存
-  setStyle('ov-warn', 'display', mouseToggle ? 'block' : 'none'); // 显示/隐藏警示条
-  $('overlay-shell').classList.toggle('mouse-toggle', mouseToggle); // 切换外框橙色光晕样式
+  setHTML('ov-warn', mouseToggle // 锁存时橙色警示条，平时弱化占位（高度恒定，避免悬浮窗抖动）
+    ? '<div class="overlay-warn">⚠ 鼠标长按锁存中，再按一次解除</div>'
+    : '<span class="overlay-dim">长按锁存: 无</span>');
+  $('overlay-card').classList.toggle('mouse-toggle', mouseToggle); // 切换卡片橙色内光晕样式
 
-  // 外框/卡片背景透明度跟随设置（透明度越低越透明，配合透明窗口）
+  // 卡片背景透明度跟随设置（透明度越低越透明，配合透明窗口）
   const op = typeof snap.opacity === 'number' ? snap.opacity : 0.85; // 取快照中的透明度，缺省 0.85
-  const bg = 'rgba(43, 45, 49, ' + op + ')'; // 深色背景色（外框与卡片同色，深色区域统一）
+  const bg = 'rgba(43, 45, 49, ' + op + ')'; // 深色背景色（卡片与 body 同色，深色区域统一）
   if (document.body.style.background !== bg) document.body.style.background = bg; // body 兜底背景
-  setStyle('overlay-shell', 'background', bg); // 外层容器背景（与卡片同色）
-  setStyle('overlay-card', 'background', bg); // 内层卡片背景
+  setStyle('overlay-card', 'background', bg); // 卡片背景
 
   // 展开：映射列表
   // 收起动画中 display 由 setExpanded 控制（映射区脱离文档流淡出），此处跳过避免截断淡出
   if (!collapsing) setStyle('ov-mappings', 'display', expanded ? 'flex' : 'none'); // 展开时显示映射区
   if (expanded) { // 仅展开时渲染映射列表
     setText('ov-map-title', '当前层映射: ' + esc(snap.layer_name)); // 映射列表标题
-    setHTML('ov-map-list', snap.mappings.length === 0 // 生成映射行（内容不变则跳过重建）
-      ? '<span class="overlay-faint">（无映射）</span>' // 无映射时显示空提示
-      : snap.mappings.map((m) => // 遍历每条映射生成行
-        '<div class="overlay-row">' + // 一行容器
-        '<span class="ov-acc' + (m.held ? ' held' : '') + '">' + esc(m.button) + '</span>' + // 手柄按键名（按住中变橙色）
-        '<span class="ov-dim">→</span>' + // 箭头分隔
-        '<span class="ov-text">' + esc(m.desc) + '</span>' + // 映射动作描述
-        '</div>'
-      ).join(''));
+    const maxN = snap.max_mappings || 0; // 当前操作集映射最多的层的行数（后端计算）：用于占位固定展开高度
+    const rows = snap.mappings.map((m) => // 遍历每条映射生成行
+      '<div class="overlay-row">' + // 一行容器
+      '<span class="ov-acc' + (m.held ? ' held' : '') + '">' + esc(m.button) + '</span>' + // 手柄按键名（按住中变橙色）
+      '<span class="ov-dim">→</span>' + // 箭头分隔
+      '<span class="ov-text">' + esc(m.desc) + '</span>' + // 映射动作描述
+      '</div>'
+    );
+    for (let i = snap.mappings.length; i < maxN; i++) { // 不可见占位行补齐到 maxN
+      rows.push('<div class="overlay-row ov-pad"></div>'); // 撑高占位：切层后映射行数不足时高度保持固定
+    }
+    setHTML('ov-map-list', rows.length === 0 // 无任何行时显示空提示
+      ? '<span class="overlay-faint">（无映射）</span>'
+      : rows.join(''));
   }
   fitHeight(); // 内容变化后贴合窗口高度（有守卫，高度没变不会重复 setSize）
 }
@@ -122,8 +128,8 @@ async function fitHeight() {
   if (animating) return; // 展开/收起高度动画进行中，跳过避免干扰分步生长
   await new Promise((r) => requestAnimationFrame(r)); // 等布局完成再测量
   const card = $('overlay-card');
-  // 卡片高 + 外层 shell 上下深色间距（padding 8px*2 = 16px），窗口高度才贴合
-  const h = card.offsetHeight + 16;
+  // 窗口高度贴合卡片高度（无 shell 边距补偿，卡片铺满窗口）
+  const h = card.offsetHeight;
   const target = Math.max(MIN_H, Math.min(h, MAX_H)); // 夹在上下限之间
   if (target === lastFitH) return; // 高度没变则跳过
   lastFitH = target;               // 记录本次高度
@@ -137,7 +143,7 @@ async function animateHeight(targetArg) {
   const card = $('overlay-card');
   const target = targetArg != null // 目标高度：传入值优先，否则按当前内容高度
     ? targetArg
-    : Math.max(MIN_H, Math.min(card.offsetHeight + 16, MAX_H)); // 夹在上下限
+    : Math.max(MIN_H, Math.min(card.offsetHeight, MAX_H)); // 夹在上下限（贴合卡片，无 shell 边距）
   if (target === lastFitH) return; // 高度没变则跳过
   const from = lastFitH > 0 ? lastFitH : target; // 首帧无基线则直接用目标（避免从 0 生长）
   const win = getCurrentWindow(); // 窗口句柄
@@ -183,10 +189,10 @@ async function setExpanded(v) {
       $('ov-mappings').style.opacity = '0'; // 淡出
       $('ov-mappings').style.transform = 'translateY(10px) scale(0.98)'; // 下移微缩滑出
       await new Promise((r) => setTimeout(r, 200)); // 等淡出/滑出过渡完成（0.2s）
-      // 计算收起目标高度：当前（展开）内容高度 - 映射区高度 - 映射区前一个 gap（card gap 8px）
+      // 计算收起目标高度：当前（展开）卡片高度 - 映射区高度 - 映射区前一个 gap（card gap 8px）
       const card = $('overlay-card');
       const mapping = $('ov-mappings');
-      const collapseH = Math.max(MIN_H, Math.min(card.offsetHeight + 16 - mapping.offsetHeight - 8, MAX_H));
+      const collapseH = Math.max(MIN_H, Math.min(card.offsetHeight - mapping.offsetHeight - 8, MAX_H));
       await animateHeight(collapseH); // 先收缩窗口（映射区仍占位，底部内容被裁剪，不露透明）
       $('ov-mappings').style.display = 'none'; // 收缩完成，隐藏映射区
       $('ov-mappings').style.opacity = ''; // 清理内联透明度（恢复 CSS 默认，下次展开重新设置）

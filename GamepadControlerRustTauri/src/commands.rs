@@ -73,6 +73,8 @@ pub struct OverlaySnapshot { // 悬浮窗整体快照
     pressed: Vec<String>, // 当前被按下的按钮显示名集合
     mouse_toggle: bool, // 是否有鼠标长按锁存
     mappings: Vec<MappingRow>, // 当前层按键映射行列表
+    /// 当前操作集内映射最多的层的映射数，前端据此用占位行固定展开高度（切层不伸缩）
+    max_mappings: usize, // 最大映射数
     /// 悬浮窗卡片背景透明度（0.2 ~ 1.0），前端据此设置背景 alpha
     opacity: f32, // 透明度数值
 } // 结构体结束
@@ -299,6 +301,16 @@ pub fn get_overlay_snapshot(state: State<'_, AppState>) -> OverlaySnapshot { // 
         } // for 循环结束
     } // 外层 if-let 结束
     let opacity = *state.overlay_opacity.lock().unwrap(); // 加锁读取透明度（* 解引用 MutexGuard）
+    // 当前操作集所有层（公共层+操作层）中映射数的最大值：前端据此固定展开高度
+    let max_mappings = core.steam.profile.active_set() // 当前激活操作集
+        .map(|s| { // 计算该操作集内的最大映射数
+            std::iter::once(&s.common_layer) // 公共层
+                .chain(s.layers.iter()) // 各操作层
+                .map(|l| l.button_mappings.len()) // 每层映射数
+                .max() // 取最大
+                .unwrap_or(0) // 无层时回退 0
+        })
+        .unwrap_or(0); // 无操作集时回退 0
     OverlaySnapshot { // 构造悬浮窗快照
         set_name, // 操作集名称
         layer_name, // 层名称
@@ -306,6 +318,7 @@ pub fn get_overlay_snapshot(state: State<'_, AppState>) -> OverlaySnapshot { // 
         pressed, // 按住的按钮列表
         mouse_toggle, // 鼠标长按标志
         mappings, // 映射行列表
+        max_mappings, // 最大映射数（用于固定展开高度）
         opacity, // 透明度
     } // OverlaySnapshot 字面量结束
 } // 函数结束

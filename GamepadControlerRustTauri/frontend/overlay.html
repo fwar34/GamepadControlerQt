@@ -7,10 +7,7 @@
   <link rel="stylesheet" href="style.css" /> <!-- 引入全局样式表 -->
 </head>
 <body class="overlay-body"> <!-- overlay-body 类使 body 透明（配合透明窗口） -->
-  <!-- 外层深色背景层：深色背景 + 8px 深色间距，无描边；圆角由 body 的 CSS 圆角实现，
-       圆角外四角为透明缺口（透明窗口固有取舍） -->
-  <div class="overlay-shell" id="overlay-shell">
-  <div class="overlay-card" id="overlay-card"> <!-- 悬浮窗卡片：铺满窗口，圆角 8px 与整体轮廓一致 -->
+  <div class="overlay-card" id="overlay-card"> <!-- 悬浮窗卡片：铺满窗口，圆角 8px 由 body 统一裁剪 -->
     <!-- 标题行：点击或拖动；data-tauri-drag-region 允许拖动窗口 -->
     <div class="overlay-title" id="ov-title" data-tauri-drag-region> <!-- 标题行（可拖动窗口，点击切换展开） -->
       <span class="ov-set" id="ov-set">操作集: --</span> <!-- 当前操作集名称（overlay.js 动态刷新） -->
@@ -28,10 +25,8 @@
     <!-- 按下按键 -->
     <div class="overlay-pressed" id="ov-pressed"></div> <!-- 当前按下的手柄按键 chips（动态渲染） -->
 
-    <!-- L3 锁存警示 -->
-    <div id="ov-warn" style="display:none;"> <!-- 锁存警示容器（默认隐藏） -->
-      <div class="overlay-warn">⚠ 鼠标长按锁存中，再按一次解除</div> <!-- 警示条文案 -->
-    </div>
+    <!-- L3 锁存警示（固定高度占位：平时弱化提示，锁存时橙色警示，切换不改变悬浮窗高度） -->
+    <div id="ov-warn"><span class="overlay-dim">长按锁存: 无</span></div>
 
     <!-- 展开：当前层映射列表 -->
     <div id="ov-mappings" style="display:none;"> <!-- 展开后的映射列表容器（默认隐藏） -->
@@ -45,7 +40,6 @@
       </div>
       <div class="overlay-faint">（点击标题收起）</div> <!-- 收起提示 -->
     </div>
-  </div>
   </div>
   <script src="overlay.js"></script> <!-- 悬浮窗前端逻辑脚本 -->
 </body>
