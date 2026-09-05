@@ -126,7 +126,7 @@ pub mod android_key {
 // ---------------------------------------------------------------------
 // 【Rust 语法】#[derive(...)]：自动派生 Debug（调试输出）、Clone（克隆）、Copy（按位复制）、
 // PartialEq（== 比较）、Eq（全等）、Hash（可哈希）六个 trait
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
 // 【Rust 语法】pub enum：公开枚举，各变体为无数据字段的"单元变体"，代表手柄物理按键
 pub enum ControllerButton {
     A, // 按键 A

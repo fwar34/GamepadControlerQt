@@ -99,8 +99,9 @@ pub struct ButtonGridItem { // 层编辑界面按钮网格的一个格子
 
 // 【Rust 语法】derive 派生宏：自动实现 Serialize（序列化）trait
 #[derive(Serialize)]
-pub struct LayerEditSnapshot { // 层编辑页整体快照
+pub struct LayerEditSnapshot<'r> { // 层编辑页整体快照
     layer_name: String, // 被编辑层的名称
+    trigger_button: Option<&'r str>, // 触发层切换的按钮（公共层无指向本层的切换映射时为 ""）
     switch_targets: Vec<SwitchTarget>, // 可切换目标列表
     buttons: Vec<ButtonGridItem>, // 按钮网格数据
 } // 结构体结束
@@ -461,15 +462,21 @@ pub fn quit_app(app: AppHandle) { // 退出应用命令
 // ---------------------------------------------------------------------
 // 【Rust 语法】属性宏 #[tauri::command]：注册为 Tauri IPC 命令
 #[tauri::command]
-pub fn get_layer_edit_snapshot(state: State<'_, AppState>, layer_id: String) -> LayerEditSnapshot { // 层编辑快照命令
+pub fn get_layer_edit_snapshot(state: State<'_, AppState>, layer_id: String) -> LayerEditSnapshot<'_> { // 层编辑快照命令
     let core = state.shared.core.lock().unwrap(); // 对核心加锁
-    let layer_name = if layer_id == "Common" { // 【Rust 语法】if 表达式：公共层特殊命名
-        "公共层".to_string() // 公共层的显示名
-    } else { // 其他层按 id 查找名称
-        find_layer_ref(&core.steam.profile, &layer_id) // 查找层引用
-            .map(|l| l.name.clone()) // 【Rust 语法】Option::map：有则取层名称
-            .unwrap_or_default() // 【Rust 语法】unwrap_or_default：None 时返回 String 默认空串
-    }; // if 表达式结束
+
+    let layer = find_layer_ref(&core.steam.profile, &layer_id).unwrap(); // 查找层引用
+    // “激活按钮”= 公共层中按下可切到本层的按键。匹配条件与运行时解析一致
+    // （steam_input.rs 先按 id 再按 name 解析 layerName），故命中层 id 或 name 均算
+    let trigger_button = find_layer_ref(&core.steam.profile, "Common")
+        .and_then(|l| l.button_mappings.iter().find(|(_, m)| {
+            m.action.r#type == ActionType::SwitchLayer
+                && matches!(
+                    m.action.layer_name.as_deref(),
+                    Some(n) if n == layer.id || n == layer.name
+                )
+        }))
+        .map(|(b, _)| *b); // Option<ControllerButton>：公共层无切到本层的映射时为 None
     let switch_targets: Vec<SwitchTarget> = core // 收集可切换目标
         .steam // 访问映射引擎
         .profile // 访问配置
@@ -491,9 +498,10 @@ pub fn get_layer_edit_snapshot(state: State<'_, AppState>, layer_id: String) -> 
         }) // 闭包返回 ButtonGridItem
         .collect(); // 收集为 Vec<ButtonGridItem>
     LayerEditSnapshot { // 构造层编辑快照
-        layer_name, // 层名称
+        layer_name: layer.name.clone(), // 层名称
+        trigger_button: if let Some(b) = trigger_button { Some(controller_button_name(b)) } else { None }, // 触发按键（公共层无切到本层的映射时为 None）
         switch_targets, // 切换目标列表
-        buttons, // 按钮网格
+        buttons, // 按钮网格数据
     } // LayerEditSnapshot 字面量结束
 } // 函数结束
 
