@@ -1,3 +1,7 @@
 {
-    "idf.pythonInstallPath": "i:\\esp32\\.espressif\\tools\\idf-python\\3.11.2\\python.exe"
+    "idf.pythonInstallPath": "i:\\esp32\\.espressif\\tools\\idf-python\\3.11.2\\python.exe",
+    "rust-analyzer.linkedProjects": [
+        "GamepadControlerRustTauri/Cargo.toml"
+    ],
+    "rust-analyzer.cargo.buildScripts.enable": true
 }
