@@ -11,6 +11,8 @@
   <div class="root help-view"> <!-- 根容器：复用 root 布局，允许滚动 -->
     <div class="edit-header"> <!-- 编辑窗口头部 -->
       <div class="edit-title" id="edit-title">编辑层: --</div> <!-- 当前编辑的层名（edit.js 动态刷新） -->
+      <span class="dim">当前激活按钮</span>
+      <select id="edit-layer-select" class="edit-select"></select> <!-- 层选择框（edit.js 动态渲染，层切换按键） -->
       <button class="btn" id="edit-rename-layer">重命名层</button> <!-- 重命名层按钮，点击后显示重命名输入行（edit.js） -->
       <button class="btn" id="edit-close">关闭</button> <!-- 关闭本窗口按钮 -->
     </div>

@@ -157,8 +157,20 @@ setInterval(tick, 50); // 每 50ms 轮询一次
 // ---------------------------------------------------------------------
 function renderEdit(info, map) {
   const btnDisplay = (info.buttons.find((b) => b.name === selectedButton) || {}).display || selectedButton; // 当前选中按键的显示名
-  $('edit-title').textContent = '编辑层: ' + info.layer_name + ', 激活按钮: ' + (info.trigger_button || '无'); // 标题显示层名和触发按钮（无切换映射时为“无”）
+  $('edit-title').textContent = '编辑层: ' + info.layer_name; // 标题显示层名
   $('edit-current').textContent = '当前: ' + btnDisplay + ' (' + map.desc + ')'; // 显示当前按键与其映射描述
+  let selectUnActive = !info.trigger_button ? '<option class="disabled">未设置激活按钮</option>' : null;
+  let selectOptionFlag = false;
+  $('edit-layer-select').innerHTML = info.buttons.map((b) => { // 遍历所有手柄按键生成选择框选项
+    let optionSelect = '';
+    if (!selectOptionFlag) {
+      selectOptionFlag = true;
+      if (selectUnActive) {
+        optionSelect = selectUnActive;
+      }
+    }
+    return optionSelect + '<option value="' + b.name + '" onclick="App.layerActiveButton(' + q(b.name) + ')" ' + (b.name === info.trigger_button ? 'selected' : '') + '>' + b.display + '</option>'
+  }).join('');
 
   // 手柄按钮网格
   $('edit-grid').innerHTML = info.buttons.map((b) => // 遍历所有手柄按键生成网格按钮
