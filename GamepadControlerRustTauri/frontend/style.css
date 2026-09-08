@@ -210,6 +210,28 @@ body::before {
   box-shadow: 0 5px 14px rgba(229, 85, 79, 0.4); /* 红色光晕投影 */
 }
 
+.select {
+  width: auto;
+  background: linear-gradient(180deg, #7fc9c4, #4fc08d);
+  border: 1px solid #464b53;
+  border-radius: 8px;
+  padding: 6px 12px;
+}
+.select:hover {
+  border-color: #d0dae8; /* 悬停描边转青色 */
+  transform: translateY(-1px); /* 轻微上浮 */
+}
+.select:focus {
+  outline: none; /* 去掉默认焦点框 */
+  border-color: #8d9db5; /* 焦点青色描边 */
+  box-shadow: 0 0 0 3px rgba(79, 192, 141, 0.18), /* 青色焦点光晕 */
+    inset 0 1px 0 rgba(255, 255, 255, 0.06); /* 内高光 */
+}
+.select option {
+  background-color: #2b2f36; /* 下拉选项深色底 */
+  color: #e8eaed; /* 下拉选项亮文字 */
+}
+
 .btn-row {
   display: flex; /* 弹性布局 */
   flex-direction: row; /* 水平排列 */
