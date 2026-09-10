@@ -232,6 +232,94 @@ body::before {
   color: #e8eaed; /* 下拉选项亮文字 */
 }
 
+.custom-select {
+  position: relative;
+  width: 200px;
+  font-family: sans-serif;
+  font-size: 14px;
+}
+
+/* 触发按钮 */
+.select-trigger {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #1e1e1e;
+  border: 1px solid #444;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #e0e0e0;
+  list-style: none;              /* 去掉 <summary> 默认的三角标记 */
+  user-select: none;
+}
+
+.select-trigger::-webkit-details-marker {
+  display: none;                 /* Chrome/Safari 去掉默认箭头 */
+}
+
+.select-trigger:hover {
+  border-color: #666;
+}
+
+/* 展开时按钮底部圆角消失，和面板视觉上连为一体 */
+.custom-select[open] .select-trigger {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom-color: transparent;
+}
+
+.custom-select[open] .select-arrow {
+  transform: rotate(180deg);
+}
+
+.select-arrow {
+  transition: transform 0.2s;
+  font-size: 10px;
+}
+
+/* 下拉面板 —— 这里可以随意设置圆角！ */
+.select-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: #2b2f36;
+  border: 1px solid #444;
+  border-top: none;
+  border-bottom-left-radius: 8px;   /* ✅ 底部圆角 */
+  border-bottom-right-radius: 8px;  /* ✅ 底部圆角 */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.select-dropdown li {
+  padding: 8px 12px;
+  cursor: pointer;
+  color: #e0e0e0;
+}
+
+.select-dropdown li:hover {
+  background: #0078d4;
+  color: #fff;
+}
+
+/* 第一个和最后一个选项的圆角内缩 */
+.select-dropdown li:first-child {
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+}
+
+.select-dropdown li:last-child {
+  border-bottom-left-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
+
 .btn-row {
   display: flex; /* 弹性布局 */
   flex-direction: row; /* 水平排列 */

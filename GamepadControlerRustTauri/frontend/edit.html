@@ -13,6 +13,18 @@
       <div class="edit-title" id="edit-title">编辑层: --</div> <!-- 当前编辑的层名（edit.js 动态刷新） -->
       <span class="dim">当前层激活按钮</span>
       <select id="edit-layer-select" class="select"></select> <!-- 层选择框（edit.js 动态渲染，层切换按键） -->
+      <details class="custom-select">
+        <summary class="select-trigger">
+          <span class="dim">当前层激活按钮</span>
+          <span class="select-arrow">▼</span>
+        </summary>
+        <ul class="select-dropdown">
+          <li onclick="pick(this)">苹果</li>
+          <li onclick="pick(this)">香蕉</li>
+          <li onclick="pick(this)">橙子</li>
+          <li onclick="pick(this)">葡萄</li>
+        </ul>
+      </details>
       <button class="btn" id="edit-rename-layer">重命名层</button> <!-- 重命名层按钮，点击后显示重命名输入行（edit.js） -->
       <button class="btn" id="edit-close">关闭</button> <!-- 关闭本窗口按钮 -->
     </div>
