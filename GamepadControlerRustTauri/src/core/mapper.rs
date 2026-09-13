@@ -225,8 +225,8 @@ impl MapperState {
             ActionType::MouseToggle => { // 鼠标长按锁存动作
                 self.handle_mouse_toggle(button, mapping.action.mouse_button, injector, event_tx); // 处理锁存切换
             } // 结束鼠标长按锁存分支
-            ActionType::WheelUp => injector.send_mouse_wheel(1), // 滚轮上滚：瞬时事件，无松开处理
-            ActionType::WheelDown => injector.send_mouse_wheel(-1), // 滚轮下滚：瞬时事件
+            ActionType::WheelUp => self.handle_wheel(button, 1, &mapping.sub_commands, injector), // 滚轮上滚（支持子命令组合键，如 Alt+滚轮）
+            ActionType::WheelDown => self.handle_wheel(button, -1, &mapping.sub_commands, injector), // 滚轮下滚（支持子命令组合键）
             // 【Rust 语法】模式 `|`（或）匹配：多个变体共享同一分支代码。
             ActionType::SwitchLayer // 切换层动作
             | ActionType::ToggleMapping // 切换映射
@@ -248,12 +248,6 @@ impl MapperState {
         subs: &[i32], // 子命令键码切片（只读借用）
         injector: &InputInjector, // 注入器引用（只读）
     ) { // 结束参数列表，函数体开始
-        use std::io::Write;
-        let mut f = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(r"inject_log.txt").unwrap();
-        writeln!(f, "keydown code={}", main_key_code).unwrap();
         if self.pressed_main_keys.contains_key(&button) { // 若该按钮的主键已按下
             return; // 已按下，忽略重复
         } // 结束 if 判断
@@ -284,6 +278,40 @@ impl MapperState {
         self.pressed_main_keys.insert(button, main_key_code); // 记录主键已按下
         self.pressed_sub_keys.insert(button, valid_subs); // 记录子命令已按下
     } // 结束 handle_keyboard_key 函数
+
+    /// 滚轮滚动：支持子命令组合键（如 Alt+滚轮）。
+    /// 【组合键顺序】与 handle_keyboard_key 一致：修饰键（Alt/Ctrl/Shift）最先按下，
+    /// 保证游戏识别到组合键；滚轮为瞬时事件，松开时由 release_button_injection 释放子命令。
+    // 【Rust 语法】私有方法：`&mut self` 可变借用（需记录子命令按下状态）。
+    fn handle_wheel(
+        &mut self, // 可变借用自身（需要记录子命令按下状态）
+        button: ControllerButton, // 触发的手柄按钮
+        dir: i32, // 滚动方向（1 上滚 / -1 下滚）
+        subs: &[i32], // 子命令键码切片（只读借用）
+        injector: &InputInjector, // 注入器引用（只读）
+    ) { // 结束参数列表，函数体开始
+        if self.pressed_sub_keys.contains_key(&button) { // 该按钮的子命令已在按住中
+            return; // 忽略重复（滚轮为瞬时事件，按下一次滚动一格）
+        } // 结束 if 判断
+        // 【Rust 语法】`subs.len().min(...)`：取长度与上限二者中的较小值（限制子命令数量）。
+        let n = subs.len().min(KeyMapping::MAX_SUB_COMMANDS);
+        // 【Rust 语法】`subs[..n].to_vec()`：切片取前 n 个元素并复制为 Vec<i32>（子命令键码列表）。
+        let valid_subs: Vec<i32> = subs[..n].to_vec(); // 收集子命令键码
+        // ① 修饰子命令最先按下（Alt/Ctrl/Shift 优先于滚轮事件）
+        for &sub in &valid_subs { // 遍历修饰子命令
+            if is_modifier_key(sub) { // 是修饰键
+                injector.send_key_down(sub); // 最先按下（形成组合键的修饰部分）
+            } // 结束 if 判断
+        } // 结束 for 循环
+        injector.send_mouse_wheel(dir); // ② 发送滚轮事件（此时修饰键已按下）
+        // ③ 非修饰子命令后按下
+        for &sub in &valid_subs { // 遍历非修饰子命令
+            if !is_modifier_key(sub) { // 非修饰键
+                injector.send_key_down(sub); // 后按下
+            } // 结束 if 判断
+        } // 结束 for 循环
+        self.pressed_sub_keys.insert(button, valid_subs); // 记录子命令已按下（松开时自动释放）
+    } // 结束 handle_wheel 函数
 
     /// 鼠标单击：按下/松开跟随手柄
     // 【Rust 语法】私有方法：`&mut self` 可变借用。

@@ -189,8 +189,8 @@ function renderEdit(info, map) {
   // 目标区
   $('edit-target').innerHTML = targetHTML(info, map); // 按动作类型渲染目标选择区
 
-  // 子命令（仅键盘动作提供，且只列特殊功能按键；其余动作类型不提供子命令）
-  const showSubs = editKind === 'keyboard'; // 是否显示子命令区
+  // 子命令（键盘/滚轮动作提供组合键；其余动作类型不提供）
+  const showSubs = editKind === 'keyboard' || editKind === 'wheelup' || editKind === 'wheeldown'; // 是否显示子命令区（键盘/滚轮支持组合键）
   $('edit-subs').style.display = showSubs ? '' : 'none'; // 隐藏/显示子命令 chips 容器
   $('edit-subs-label').style.display = showSubs ? '' : 'none'; // 隐藏/显示子命令标题
   if (showSubs) { // 仅键盘动作渲染子命令

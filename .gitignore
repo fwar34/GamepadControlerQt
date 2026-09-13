@@ -35,6 +35,7 @@ steamlike_config.json
 
 # 日志文件
 *.log
+inject_log.txt
 
 # Rust 构建目录
 target/
