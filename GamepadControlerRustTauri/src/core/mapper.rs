@@ -115,6 +115,21 @@ pub struct MapperState {
     pub smoothed_look_y: f32, // 视角 EMA 平滑后的 Y 值
 } // 结束 MapperState 结构体定义
 
+/// 判断是否为修饰键（Alt/Ctrl/Shift）：
+/// 组合键注入/释放时修饰键必须「最先按下、最后释放」，否则游戏识别不到组合键。
+// 【Rust 语法】模块级私有函数（不在 impl 内，属于模块顶层）；matches! 宏判断 code 是否命中任一修饰键键码。
+fn is_modifier_key(code: i32) -> bool {
+    matches!(
+        code, // 待判断的键码
+        android_key::ALT_LEFT // 左 Alt
+            | android_key::ALT_RIGHT // 右 Alt
+            | android_key::CTRL_LEFT // 左 Ctrl
+            | android_key::CTRL_RIGHT // 右 Ctrl
+            | android_key::SHIFT_LEFT // 左 Shift
+            | android_key::SHIFT_RIGHT // 右 Shift
+    ) // matches! 调用结束，其值为 bool
+}
+
 // 【Rust 语法】impl 块：为 MapperState 实现方法。
 impl MapperState {
     /// 释放全部注入状态（物理按键/鼠标键 + 所有保持状态，含 MouseToggle 锁存）。
@@ -155,16 +170,27 @@ impl MapperState {
     /// 注意：不处理 MouseToggle 锁存（toggle 由用户主动锁存，松开不改变状态）。
     // 【Rust 语法】方法：`&mut self` 可变借用（需要从记录中移除条目）。
     pub fn release_button_injection(&mut self, button: ControllerButton, injector: &InputInjector) {
-        // 释放子命令（逆序，与按下顺序相反）
-        // 【Rust 语法】if let 模式匹配：remove(&button) 移除并返回 Option<Vec<i32>>，取出时绑定到 subs。
+        // 释放子命令与主键（顺序与注入相反：非修饰子命令 -> 主键 -> 修饰子命令）
+        // 【组合键顺序】修饰键（Alt/Ctrl/Shift）必须最后释放，与注入时的"最先按下"对称，
+        // 否则 Alt 先于主键松开，游戏（如魔兽）识别不到完整组合键。
         if let Some(subs) = self.pressed_sub_keys.remove(&button) {
             // 【Rust 语法】`subs.iter().rev()`：反向迭代引用；`sub` 为元素引用 &i32，`*sub` 解引用取 i32 值。
-            for sub in subs.iter().rev() {
-                injector.send_key_up(*sub); // 逐个发送键抬起事件
+            for sub in subs.iter().rev() { // 非修饰子命令先释放
+                if !is_modifier_key(*sub) { // 非修饰键
+                    injector.send_key_up(*sub); // 逐个发送键抬起事件
+                } // 结束 if 判断
             } // 结束 for 循环
-        } // 结束 if let 分支
-        // 释放主键
-        if let Some(main) = self.pressed_main_keys.remove(&button) {
+            // 释放主键
+            if let Some(main) = self.pressed_main_keys.remove(&button) {
+                injector.send_key_up(main); // 发送主键抬起
+            } // 结束 if let 分支
+            // 修饰子命令最后释放
+            for sub in subs.iter().rev() { // 修饰键最后释放
+                if is_modifier_key(*sub) { // 修饰键
+                    injector.send_key_up(*sub); // 逐个发送键抬起事件
+                } // 结束 if 判断
+            } // 结束 for 循环
+        } else if let Some(main) = self.pressed_main_keys.remove(&button) { // 无子命令时直接释放主键
             injector.send_key_up(main); // 发送主键抬起
         } // 结束 if let 分支
         // 释放鼠标（不处理长按保持的）
@@ -210,7 +236,10 @@ impl MapperState {
         } // 结束 match 表达式
     } // 结束 handle_button 函数
 
-    /// 键盘映射：先按下主键，再依次按下各子命令（组合键，如 Alt+3）。
+    /// 键盘映射：按下组合键。
+    /// 【组合键顺序】无论配置中修饰键（Alt/Ctrl/Shift）是主键还是子命令，
+    /// 统一「修饰键最先按下 -> 主键 -> 非修饰子命令」，与真实键盘一致：
+    /// 先按修饰键再按主键，游戏（如魔兽）才能识别为组合键（如 Alt+3）。
     // 【Rust 语法】私有方法（无 pub 修饰）：`&[i32]` 是切片类型，可看作对数组/向量元素的借用视图。
     fn handle_keyboard_key(
         &mut self, // 可变借用自身（需要记录主键/子命令按下状态）
@@ -239,9 +268,18 @@ impl MapperState {
             } // 结束 if 判断
             valid_subs.push(subs[i]); // 收集有效的子命令键码
         } // 结束 for 循环
-        injector.send_key_down(main_key_code); // 先按下主键
-        for &sub in &valid_subs { // 【Rust 语法】`&sub` 解构引用：迭代时直接把 &i32 解引用绑定为 i32 值
-            injector.send_key_down(sub); // 依次按下各子命令（形成组合键）
+        // ① 修饰子命令最先按下（Alt/Ctrl/Shift 优先于主键）
+        for &sub in &valid_subs { // 遍历修饰子命令
+            if is_modifier_key(sub) { // 是修饰键
+                injector.send_key_down(sub); // 最先按下（形成组合键的修饰部分）
+            } // 结束 if 判断
+        } // 结束 for 循环
+        injector.send_key_down(main_key_code); // ② 再按下主键（若主键本身是修饰键，此时修饰键也已排在最前）
+        // ③ 非修饰子命令最后按下
+        for &sub in &valid_subs { // 遍历非修饰子命令
+            if !is_modifier_key(sub) { // 非修饰键
+                injector.send_key_down(sub); // 最后按下
+            } // 结束 if 判断
         } // 结束 for 循环
         self.pressed_main_keys.insert(button, main_key_code); // 记录主键已按下
         self.pressed_sub_keys.insert(button, valid_subs); // 记录子命令已按下
