@@ -647,3 +647,56 @@ pub fn rename_layer(state: State<'_, AppState>, layer_id: String, layer_name: St
     layer.name = layer_name;
     core.profile_rev += 1;
 }
+
+// 【Rust 语法】属性宏 #[tauri::command]：注册为 Tauri IPC 命令
+#[tauri::command]
+pub fn change_layer_trigger_button(state: State<'_, AppState>, layer_id: String, button_name: String) { // 修改层的「激活按钮」命令
+    // 语义：在公共层写入一条「切层」映射（公共层的 button_name 按钮 -> 切到 layer_id 对应层），
+    // 与 get_layer_edit_snapshot 中扫描触发按键的规则保持一致。
+    // 注意：这里不能先 `let core = state.shared.core.lock()` 再调用 set_mapping：
+    //   1) 先加锁会借用 state，之后把 state 移动进 set_mapping 会报 E0505
+    //      （cannot move out of `state` because it is borrowed）；
+    //   2) std::sync::Mutex 不可重入，重入加锁会直接死锁。
+    // 故下方的清理逻辑放在独立块内（块结束即释放锁），随后再把 state 移动给 set_mapping。
+
+    // 公共层恒为激活层（steam_input::activate_layer 会忽略 "Common"），不存在「激活按钮」：
+    // 直接返回，避免把公共层上该按键原本的映射覆盖成一条永不生效的切层动作。
+    if layer_id.is_empty() || layer_id == "Common" { // 非法目标（空 / 公共层）
+        return; // 不做任何修改
+    } // 非法目标分支结束
+
+    // 1) 先清除公共层中指向本层的旧「切层」映射：前端下拉框是单选控件，同一层只应保留一个激活按钮；
+    //    否则改选后旧按钮仍能激活本层，且 get_layer_edit_snapshot 依赖 HashMap 迭代顺序扫描，回显不确定。
+    // 【Rust 语法】块表达式：锁在块内使用，块结束自动释放锁后再调用 set_mapping
+    {
+        let mut core = state.shared.core.lock().unwrap(); // 对核心加锁（仅在本块内持有）
+        // 旧配置可能按「层名称」写入切层映射，故同时匹配 id 与 name
+        let target_name = find_layer_ref(&core.steam.profile, &layer_id) // 查目标层（不可变借用）
+            .map(|l| l.name.clone()) // 命中则克隆名称（避免与后续可变借用冲突）
+            .unwrap_or_default(); // 层不存在则空串（仅按 id 匹配）
+        // 【Rust 语法】let-else 语句：取到公共层则绑定 common，否则执行 else 分支
+        let Some(common) = find_layer_mut(&mut core.steam.profile, "Common") else { // 取公共层可变引用
+            return; // 无公共层（异常配置）则放弃
+        }; // let-else 结束
+        // 【Rust 语法】HashMap::retain(闭包)：闭包返回 true 的项保留，false 的项移除；此处移除指向本层的切层映射
+        common.button_mappings.retain(|_, m| {
+            !(m.action.r#type == ActionType::SwitchLayer // 动作是「切层」
+                && matches!( // 且目标层就是本层（id 或名称命中）
+                    m.action.layer_name.as_deref(),
+                    Some(n) if n == layer_id.as_str() || n == target_name.as_str()
+                ))
+        }); // retain 结束
+        core.profile_rev += 1; // 配置版本号自增，通知前端刷新
+    } // 块结束，锁在此释放
+
+    // 2) 写入新的激活按钮映射
+    set_mapping( // 复用「写入按键映射」命令（内部自带加锁与 profile_rev 自增）
+        state, // 共享状态（按值移动，此处未持有任何借用）
+        "Common".to_string(), // 映射写在公共层（激活按钮由公共层驱动切层）
+        button_name, // 触发按钮名
+        "switchlayer".to_string(), // 动作类型：切换层
+        None, // 键盘键码（切层动作不需要）
+        None, // 鼠标键（切层动作不需要）
+        Some(layer_id), // 切层目标：被编辑的层 id
+    ); // set_mapping 调用结束
+} // 函数结束

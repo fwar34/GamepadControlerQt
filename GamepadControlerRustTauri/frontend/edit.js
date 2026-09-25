@@ -112,6 +112,7 @@ let editLayerId = decodeURIComponent(location.hash.replace(/^#/, '')) || 'Common
 let selectedButton = 'A'; // 当前选中的手柄按键
 let editKind = 'keyboard'; // 当前选中的动作类型
 let prevEdit = null; // 上一次渲染内容对比串，避免重复渲染
+let prevSelectKey = null; // 上一次「激活按钮」下拉框内容指纹，避免重建 DOM 把展开中的下拉框重置
 let renameLayerMode = false; // 是否正在重命名操作集
 let renameLayerId = null; // 当前重命名的操作集 id
 let renameLayerValue = ''; // 当前重命名的名称值
@@ -123,6 +124,7 @@ listen('edit-layer', (e) => { // 注册 edit-layer 事件监听
   selectedButton = 'A'; // 重置选中按键为 A
   editKind = 'keyboard'; // 重置动作类型为键盘
   prevEdit = null; // 清空对比串，强制下一轮重新渲染
+  prevSelectKey = null; // 清空下拉框指纹，切换层后强制重建选项
   // 读取新层 A 键的现有映射类型
   invoke('get_mapping', { layerId: id, button: 'A' }).then((map) => { // 查询 A 键当前映射
     if (map.has_mapping) editKind = map.kind; // 若已有映射则按原类型显示
@@ -159,18 +161,26 @@ function renderEdit(info, map) {
   const btnDisplay = (info.buttons.find((b) => b.name === selectedButton) || {}).display || selectedButton; // 当前选中按键的显示名
   $('edit-title').textContent = '编辑层: ' + info.layer_name; // 标题显示层名
   $('edit-current').textContent = '当前: ' + btnDisplay + ' (' + map.desc + ')'; // 显示当前按键与其映射描述
-  let selectUnActive = !info.trigger_button ? '<option class="disabled">未设置激活按钮</option>' : null;
-  let selectOptionFlag = false;
-  $('edit-layer-select').innerHTML = info.buttons.map((b) => { // 遍历所有手柄按键生成选择框选项
-    let optionSelect = '';
-    if (!selectOptionFlag) {
-      selectOptionFlag = true;
-      if (selectUnActive) {
-        optionSelect = selectUnActive;
-      }
-    }
-    return optionSelect + '<option value="' + b.name + '" onclick="App.layerActiveButton(' + q(b.name) + ')" ' + (b.name === info.trigger_button ? 'selected' : '') + '>' + b.display + '</option>'
-  }).join('');
+  // 公共层恒为激活层，不存在"激活按钮"：隐藏该控件（写入公共层的切层映射是无效动作，
+  // 还会把公共层上该按键原有的映射覆盖掉，故后端也做了同样的拦截）
+  const isCommon = editLayerId === 'Common'; // 是否正在编辑公共层
+  $('edit-layer-select-label').style.display = isCommon ? 'none' : ''; // 标签显隐
+  $('edit-layer-select').style.display = isCommon ? 'none' : ''; // 下拉框显隐
+
+  // 激活按钮下拉框：仅当"按键集合 / 选中的激活按钮"变化时才重建 DOM。
+  // 重建 innerHTML 会重置（并关闭）正在展开的下拉框，而手柄按键按下/松开会不断触发本函数重渲染，
+  // 表现为"选完没反应"，故先用指纹比对跳过无变化的重建。
+  const selectKey = info.buttons.map((b) => b.name).join(',') + '|' + (info.trigger_button || '');
+  if (selectKey !== prevSelectKey) { // 内容有变化才重建
+    prevSelectKey = selectKey; // 记录本次指纹
+    const sel = $('edit-layer-select'); // 激活按钮下拉框
+    // 未设置激活按钮时补一个占位项（value 为空串，提交时由 layerActiveButton 忽略）
+    const placeholder = info.trigger_button ? '' : '<option class="disabled" value="">未设置激活按钮</option>';
+    sel.innerHTML = placeholder + info.buttons.map((b) => // 遍历所有手柄按键生成选项
+      '<option value="' + b.name + '"' + (b.name === info.trigger_button ? 'selected' : '') + '>' + esc(b.display) + '</option>'
+    ).join('');
+    sel.value = info.trigger_button || ''; // 同步选中项（无激活按钮时回到占位项）
+  }
 
   // 手柄按钮网格
   $('edit-grid').innerHTML = info.buttons.map((b) => // 遍历所有手柄按键生成网格按钮
@@ -280,6 +290,16 @@ const App = {
     renameLayerValue = ''; // 清空输入值
     renderRenameLayerRow();
   },
+  layerActiveButton(layerId, keyName) {
+    if (!keyName) return; // 占位项（"未设置激活按钮"）的 value 为空串，不提交
+    // 【坑】Tauri 2 的 #[tauri::command] 默认把 Rust 参数名转成 camelCase 再匹配
+    // （tauri-macros 的 argument_case 默认 ArgumentCase::Camel），
+    // 因此后端 layer_id / button_name 必须写成 layerId / buttonName；
+    // 传 layer_id / button_name 会以「invalid args ... missing required key」失败，
+    // 且 invoke 返回的 Promise 被拒绝，不加 catch 时表现为"点了没反应"。
+    invoke('change_layer_trigger_button', { layerId: layerId, buttonName: keyName })
+      .catch((e) => console.error('change_layer_trigger_button:', e)); // 打印失败原因，避免再次静默无反应
+  },
 };
 
 // renderRenameLayerRow：根据 renameLayerMode 决定重命名输入行的显示与内容
@@ -307,6 +327,7 @@ $('rename-layer-ok').addEventListener('click', () => App.renameLayerOk()); // �
 $('rename-layer-cancel').addEventListener('click', () => App.renameLayerCancel()); // 取消重命名按钮，点击后隐藏输入行
 $('edit-close').addEventListener('click', () => App.close()); // 关闭按钮
 $('edit-clear').addEventListener('click', () => App.clearMapping()); // 清除映射按钮
+$('edit-layer-select').addEventListener('change', (e) => App.layerActiveButton(editLayerId, e.target.value));
 
 document.addEventListener('pointerdown', (e) => { // 监听指针按下（事件委托，适用于动态生成的元素）
   const el = e.target.closest('.btn, .chip, .pad-btn, .mini'); // 命中可点击元素

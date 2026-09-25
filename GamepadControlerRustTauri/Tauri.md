@@ -733,3 +733,5 @@ await window.__TAURI__.core.invoke("adjust_setting", {
 - **配置保存时机**：`RunEvent::Exit` 钩子中 `stop_mapping()`（释放注入防卡键）+ 自动保存 `steamlike_config.json`。
 - **前端刷新方式**：JS 以约 50ms 周期 `invoke("get_snapshot")` 轮询渲染；后端配置变更通过 `profile_rev` 修订号触发 UI 重绘。
 - **子命令上限**：`KeyMapping::MAX_SUB_COMMANDS = 3`，`toggle_sub` 命令按此限制增删组合键。
+- **IPC 参数名必须 camelCase（高频坑）**：`#[tauri::command]` 的参数名由宏默认转成 camelCase 后再与前端 JSON 键匹配（`tauri-macros` 的 `argument_case` 默认为 `ArgumentCase::Camel`），**不是** snake_case。前端写 `{ layer_id: ..., button_name: ... }` 会以 `invalid args \`layerId\` for command \`change_layer_trigger_button\`: command change_layer_trigger_button missing required key layerId` 失败；`invoke` 返回的 Promise 只被拒绝、界面上没有任何提示，表现为"点了没反应"（错误只在 WebView 控制台可见）。因此每个 `invoke` 都应补 `.catch((e) => console.error(...))`。
+- **层"激活按钮"下拉框**：公共层恒为激活层（`activate_layer` 会忽略 `"Common"`），无激活按钮，编辑公共层时前端隐藏该下拉框、后端 `change_layer_trigger_button` 也直接返回；改选激活按钮时后端会先清除公共层中指向本层的旧「切层」映射，保证单选语义与快照回显确定（`HashMap` 迭代顺序不保证）。
