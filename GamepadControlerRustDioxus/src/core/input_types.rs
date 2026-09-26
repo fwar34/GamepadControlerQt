@@ -383,16 +383,16 @@ pub fn key_code_to_name(key_code: i32) -> String {
 /// 层名 -> 带预设中文别名的展示名（WoW 预设）
 pub fn layer_display_name(layer_name: &str) -> String {
     let alias = match layer_name {
-        "Layer1" => "战斗",
-        "Layer2" => "骑乘",
-        "Layer3" => "瞄准",
-        "Layer4" => "拾取",
-        "Layer5" => "潜行",
-        "Layer6" => "钓鱼",
-        "Layer7" => "对战",
-        "Layer8" => "团本",
-        "Layer9" => "旅行",
-        "Layer10" => "自定义",
+        "Layer1" => "LT层",
+        "Layer2" => "RT层",
+        "Layer3" => "LB层",
+        "Layer4" => "RB层",
+        "Layer5" => "Menu层",
+        "Layer6" => "Option层",
+        "Layer7" => "Up层",
+        "Layer8" => "Down层",
+        "Layer9" => "Left层",
+        "Layer10" => "Right层",
         _ => return layer_name.to_string(),
     };
     format!("{} {}", layer_name, alias)
