@@ -66,6 +66,7 @@ pub fn profile_to_json(profile: &ControllerProfile) -> Value {
         "mainWindowY": profile.global_settings.main_window_y,
         "releaseOnForegroundChange": profile.global_settings.release_on_foreground_change,
         "confirmOnClose": profile.global_settings.confirm_on_close,
+        "overlayOpacity": profile.global_settings.overlay_opacity,
     });
     // 【Rust 语法】`as_object_mut()`：把 Value 转成 `Option<&mut Map>`（可变借用其中的对象）；`expect("object")`：若是 Some 则取出值，若是 None 则 panic 并输出提示信息（这里对象必然存在）。
     gs.as_object_mut().expect("object");
@@ -161,6 +162,7 @@ pub fn profile_from_json_value(root: &Value) -> Result<ControllerProfile, String
         s.main_window_y = int_(gs, "mainWindowY", -1);
         s.release_on_foreground_change = bool_(gs, "releaseOnForegroundChange", true);
         s.confirm_on_close = bool_(gs, "confirmOnClose", true);
+        s.overlay_opacity = num(gs, "overlayOpacity", 0.8);
         // 把组装好的全局设置赋回 profile。
         profile.global_settings = s;
     }

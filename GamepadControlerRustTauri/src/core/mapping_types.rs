@@ -251,6 +251,7 @@ pub struct GlobalSettings {
     pub main_window_y: i32, // 主窗口 Y 坐标
     pub release_on_foreground_change: bool, // 前台窗口切换时是否自动释放按键
     pub confirm_on_close: bool, // 关闭程序时是否弹出确认框
+    pub overlay_opacity: f32, // 悬浮窗的明度
 } // 结束 GlobalSettings 结构体定义
 
 // 【Rust 语法】为 GlobalSettings 实现 Default trait（特性）：提供一套默认值，之后可用 `GlobalSettings::default()` 便捷创建实例。
@@ -271,6 +272,7 @@ impl Default for GlobalSettings {
             main_window_y: -1, // 主窗口坐标默认 -1
             release_on_foreground_change: true, // 默认前台切换时释放按键
             confirm_on_close: true, // 默认关闭时需确认
+            overlay_opacity: 0.8, // 悬浮窗透明度默认 0.8
         } // 结束 Self 结构体字面量
     } // 结束 default 函数
 } // 结束 impl Default for GlobalSettings 块

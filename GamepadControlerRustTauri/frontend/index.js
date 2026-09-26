@@ -43,7 +43,7 @@ let renameValue = '';          // 输入框当前内容（避免轮询重绘时�
 let activeSetId = '';          // 当前激活操作集 id
 let activeSetName = '';        // 当前激活操作集名称
 let running = false;           // 映射是否正在运行（决定开始/停止按钮行为）
-let overlayOpacity = 0.85;     // 悬浮窗透明度（0.2 ~ 1.0），与后端一致
+let overlayOpacity = null;     // 悬浮窗透明度（0.2 ~ 1.0），与后端一致
 
 let prevMain = null;           // 上一次渲染的快照 JSON 串，用于对比避免重复渲染
 
@@ -75,6 +75,7 @@ function renderMain(snap) {
   running = snap.running;             // 同步映射运行状态到前端变量
   activeSetId = snap.active_set_id;   // 同步当前操作集 id
   activeSetName = snap.active_set_name; // 同步当前操作集名称
+  overlayOpacity = snap.overlay_opacity;
 
   // 状态
   const statusText = snap.connected // 根据连接与运行状态拼装状态文案
@@ -127,6 +128,7 @@ function renderMain(snap) {
   toggle.textContent = snap.running ? '停止映射' : '开始映射'; // 按运行状态切换按钮文字
   toggle.className = 'btn-toggle ' + (snap.running ? 'running' : 'stopped'); // 切换按钮颜色样式（运行红/停止青）
   $('btn-overlay').textContent = overlayVisible ? '关闭悬浮窗' : '显示悬浮窗'; // 悬浮窗按钮文案
+  $('opacity-val').textContent = overlayOpacity;
 }
 
 // renderRenameRow：根据 renameMode 决定重命名/复制输入行的显示与内容

@@ -50,6 +50,7 @@ pub struct Snapshot { // 主窗口整体状态快照
     look_sensitivity: f32, // 视角灵敏度
     look_smoothing: f32, // 视角平滑
     look_acceleration: f32, // 视角加速度
+    overlay_opacity: f32, // 悬浮窗透明度
 } // 结构体结束
 
 // ---------------------------------------------------------------------
@@ -259,6 +260,7 @@ pub fn get_snapshot(state: State<'_, AppState>) -> Snapshot { // 主窗口整体
         look_sensitivity: gs.look_sensitivity, // 视角灵敏度
         look_smoothing: gs.look_smoothing, // 视角平滑
         look_acceleration: gs.look_acceleration, // 视角加速度
+        overlay_opacity: gs.overlay_opacity,
     } // Snapshot 字面量结束
 } // 函数结束
 
@@ -300,7 +302,7 @@ pub fn get_overlay_snapshot(state: State<'_, AppState>) -> OverlaySnapshot { // 
             } // 内层 if-let 结束
         } // for 循环结束
     } // 外层 if-let 结束
-    let opacity = *state.overlay_opacity.lock().unwrap(); // 加锁读取透明度（* 解引用 MutexGuard）
+    let opacity = (*core).steam.profile.global_settings.overlay_opacity; // 读取透明度
     // 当前操作集所有层（公共层+操作层）中映射数的最大值：前端据此固定展开高度
     let max_mappings = core.steam.profile.active_set() // 当前激活操作集
         .map(|s| { // 计算该操作集内的最大映射数
@@ -458,9 +460,15 @@ pub fn toggle_overlay(app: AppHandle, state: State<'_, AppState>) -> bool { // �
 // 【Rust 语法】属性宏 #[tauri::command]：注册为 Tauri IPC 命令
 #[tauri::command]
 pub fn set_overlay_opacity(state: State<'_, AppState>, opacity: f32) { // 设置悬浮窗透明度命令
-    let mut o = state.overlay_opacity.lock().unwrap(); // 加锁取得 MutexGuard（可变守卫）
-    *o = opacity.clamp(0.2, 1.0); // 【Rust 语法】*o 解引用 MutexGuard 写入内部值；透明度限幅 0.2~1.0
+    let mut o = state.shared.core.lock().unwrap(); // 加锁取得 MutexGuard（可变守卫）
+    (*o).steam.profile.global_settings.overlay_opacity = opacity.clamp(0.2, 1.0); // 写入内部值；透明度限幅 0.2~1.0
 } // 函数结束
+
+#[tauri::command]
+pub fn get_overlay_opacity(state: State<'_, AppState>) -> f32 {
+    let core = state.shared.core.lock().unwrap();
+    (*core).steam.profile.global_settings.overlay_opacity
+}
 
 // 【Rust 语法】属性宏 #[tauri::command]：注册为 Tauri IPC 命令
 #[tauri::command]

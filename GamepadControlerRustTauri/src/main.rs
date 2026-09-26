@@ -49,8 +49,6 @@ fn focus_existing_main_window() { // 已有实例时聚焦其主窗口
 pub struct AppState { // 全局共享状态结构体
     pub shared: Arc<ui::shared::AppShared>, // 核心共享对象：Arc 使其可在多个线程间共享所有权
     pub overlay_visible: Arc<AtomicBool>, // 悬浮窗显隐标志：AtomicBool 原子布尔，无需锁即可跨线程读写
-    /// 悬浮窗卡片背景透明度（0.2 ~ 1.0，前端覆盖层应用）
-    pub overlay_opacity: Arc<Mutex<f32>>, // 透明度：Mutex<f32> 互斥锁保护的浮点数
 } // 结构体定义结束
 
 // 【Rust 语法】fn main 程序入口：crate 根函数，程序从此处开始执行
@@ -93,7 +91,6 @@ fn main() { // 程序主入口
         .manage(AppState { // 注入全局共享状态
             shared, // 字段简写：等价于 shared: shared，把共享状态移入
             overlay_visible: Arc::new(AtomicBool::new(false)), // 新建原子布尔并初始化为 false（悬浮窗默认隐藏）
-            overlay_opacity: Arc::new(Mutex::new(0.85)), // 新建互斥锁保护的透明度，默认 0.85
         }) // AppState 结构体字面量结束
         // 【Rust 语法】属性宏 tauri::generate_handler!：把命令函数列表编译为前端 invoke 的分发器
         .invoke_handler(tauri::generate_handler![ // 注册所有前端可调用的 IPC 命令
@@ -120,6 +117,7 @@ fn main() { // 程序主入口
             commands::open_app, // 打开应用
             commands::rename_layer, // 重命名层集
             commands::change_layer_trigger_button, // 改变层的激活按钮
+            commands::get_overlay_opacity,
         ]) // 命令数组宏结束
         // 【Rust 语法】闭包：|app| 为参数列表；在应用初始化完成后、运行前回调，用于创建额外窗口
         .setup(|app| { 
